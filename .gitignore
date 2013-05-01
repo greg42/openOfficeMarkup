@@ -1,0 +1,7 @@
+*.hi
+*.o
+*.exe
+*.core
+*.swp
+*.pyc
+*.ll
