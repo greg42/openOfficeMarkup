@@ -47,7 +47,11 @@ class Renderer(object):
       self.knownImageRefs = []
       self._hookRender = None
 
-   def handleCustomMetaContainer(self, properties, document, cursor, content):
+   def init(self, document, cursor):
+      self._cursor = cursor
+      self._document = document
+
+   def handleCustomMetaContainer(self, properties, content):
       raise NotImplementedError
 
    def changeLanguage(self, lang):
@@ -60,127 +64,127 @@ class Renderer(object):
       for key in myi18n:
          self.i18n[key] = myi18n[key]
 
-   def renderWord(self, document, cursor, string, lookAhead = None):
-      self.insertString(document, cursor, string)
+   def renderWord(self, string, lookAhead = None):
+      self.insertString(string)
       if lookAhead:
          if type(lookAhead) == dict and 'type' in lookAhead and\
             lookAhead['type'] == 'ItemWord':
-            self.insertString(document, cursor, ' ')
+            self.insertString(' ')
          elif type(lookAhead) == str or type(lookAhead) == unicode:
-            self.insertString(document, cursor, ' ')
+            self.insertString(' ')
 
-   def renderHeading(self, document, cursor, heading, items):
+   def renderHeading(self, heading, items):
       level = heading["level"]
-      self.insertHeading(document, cursor, level, items)
+      self.insertHeading(level, items)
 
-   def renderBoldFace(self, document, cursor, items):
-      self.insertString(document, cursor, ' ')
-      self.insertBoldFace(document, cursor, items)
-      self.smartSpace(document, cursor)
+   def renderBoldFace(self, items):
+      self.insertString(' ')
+      self.insertBoldFace(items)
+      self.smartSpace()
 
-   def renderParagraph(self, document, cursor, items):
-      self.insertParagraph(document, cursor, items)
+   def renderParagraph(self, items):
+      self.insertParagraph(items)
 
-   def renderLinebreak(self, document, cursor):
-      self.insertString(document, cursor, "\n")
+   def renderLinebreak(self):
+      self.insertString("\n")
 
-   def renderMetaContainer(self, document, cursor, content, properties):
+   def renderMetaContainer(self, content, properties):
       if not 'type' in properties:
          return
       if properties['type'] == 'source':
-         self.insertSourceCode(document, cursor, content)
+         self.insertSourceCode(content)
       if properties['type'] == 'inlineSource':
-         self.insertInlineSourceCode(document, cursor, content)
-      elif self.handleCustomMetaContainer(properties, document, cursor, content):
+         self.insertInlineSourceCode(content)
+      elif self.handleCustomMetaContainer(properties, content):
          return
       else:
          # Ignore unknown meta container types..
          return
 
-   def renderTable(self, document, cursor, table):
+   def renderTable(self, table):
       normTable = [x['content'] for x in table]
-      self.insertTable(document, cursor, normTable)
+      self.insertTable(normTable)
 
-   def renderUListItem(self, document, cursor, uli, content):
-      self.insertUListItem(document, cursor, content)
+   def renderUListItem(self, uli, content):
+      self.insertUListItem(content)
 
-   def renderOListItem(self, document, cursor, oli, content, nl = None):
-      self.insertOListItem(document, cursor, content, nl)
+   def renderOListItem(self, oli, content, nl = None):
+      self.insertOListItem(content, nl)
 
-   def renderUlist(self, document, cursor, ulist):
-      oldName = cursor.ParaStyleName
+   def renderUlist(self, ulist):
+      oldName = self._cursor.ParaStyleName
       for uli, content in ulist:
          self.currentListLevel += 1
-         self.renderUListItem(document, cursor, uli, content)
+         self.renderUListItem(uli, content)
          self.currentListLevel -= 1
 
       if self.currentListLevel == 0:
-         document.Text.insertControlCharacter(cursor, PARAGRAPH_BREAK, False)
-         cursor.ParaStyleName = oldName
+         self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+         self._cursor.ParaStyleName = oldName
 
-   def renderOlist(self, document, cursor, olist):
+   def renderOlist(self, olist):
       nl = 1
-      oldName = cursor.ParaStyleName
+      oldName = self._cursor.ParaStyleName
       for oli, content in olist:
          self.currentListLevel += 1
-         self.renderOListItem(document, cursor, oli, content, nl)
+         self.renderOListItem(oli, content, nl)
          nl = None
          self.currentListLevel -= 1
 
       if self.currentListLevel == 0:
-         document.Text.insertControlCharacter(cursor, PARAGRAPH_BREAK, False)
-         cursor.ParaStyleName = oldName
+         self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+         self._cursor.ParaStyleName = oldName
 
-   def renderContainer(self, document, cursor, container):
+   def renderContainer(self, container):
       containerType = container['type']
       if containerType == 'DocumentHeading':
-         self.renderHeading(document, cursor, container['DocumentHeading'], 
+         self.renderHeading(container['DocumentHeading'], 
                             container['content'])
       elif containerType == 'DocumentBoldFace':
-         self.renderBoldFace(document, cursor, container['content'])
+         self.renderBoldFace(container['content'])
       elif containerType == 'DocumentParagraph':
-         self.renderParagraph(document, cursor, container['content'])
+         self.renderParagraph(container['content'])
       elif containerType == 'DocumentTable':
-         self.renderTable(document, cursor, container['content'])
+         self.renderTable(container['content'])
       elif containerType == 'DocumentMetaContainer':
-         self.renderMetaContainer(document, cursor, container['content'],
+         self.renderMetaContainer(container['content'],
                              container['properties'])
       elif containerType == 'DocumentUList':
-         self.renderUlist(document, cursor, container['content'])
+         self.renderUlist(container['content'])
       elif containerType == 'DocumentOList':
-         self.renderOlist(document, cursor, container['content'])
+         self.renderOlist(container['content'])
       else:
          raise RuntimeError('Unsupported container type: %s' % containerType)
 
-   def renderImage(self, document, cursor, img):
-      self.insertImage(document, cursor, img['imageFilename'], img['imageCaption'],
+   def renderImage(self, img):
+      self.insertImage(img['imageFilename'], img['imageCaption'],
                        img['imageLabel'])
 
-   def handleCustomMetaTag(self, document, cursor, tag):
+   def handleCustomMetaTag(self, tag):
       raise NotImplementedError
 
-   def renderMetaTag(self, document, cursor, tag):
+   def renderMetaTag(self, tag):
       if 'language' in tag:
          lang = tag['language']
          self.changeLanguage(lang)
       if not 'type' in tag:
-         self.handleCustomMetaTag(document, cursor, tag)
+         self.handleCustomMetaTag(tag)
       elif tag['type'] == 'tableOfContents':
-         self.insertTableOfContents(document, cursor)
+         self.insertTableOfContents()
       elif tag['type'] == 'label':
-         self.insertReferenceMark(document, cursor, tag['name'])
+         self.insertReferenceMark(tag['name'])
       elif tag['type'] == 'ref':
-         self.insertReference(document, cursor, tag['label'])
+         self.insertReference(tag['label'])
       elif tag['type'] == 'imgref':
-         self.insertImageReference(document, cursor, tag['label'])
+         self.insertImageReference(tag['label'])
       elif tag['type'] == 'pagebreak':
-         self.insertPageBreak(document, cursor)
+         self.insertPageBreak()
       elif tag['type'] == 'footnote':
-         self.insertFootnote(document, cursor, tag['text'])
+         self.insertFootnote(tag['text'])
       elif tag['type'] == 'inlineImage':
-         self.insertInlineImage(document, cursor, tag['path'], tag['vOffset'])
+         self.insertInlineImage(tag['path'], tag['vOffset'])
       else:
-         self.handleCustomMetaTag(document, cursor, tag)
+         self.handleCustomMetaTag(tag)
 
    def _isWord(self, item):
       return self._getWord(item) != None
@@ -193,50 +197,50 @@ class Renderer(object):
             return item['ItemWord']
       return None
 
-   def smartSpace(self, document, cursor):
+   def smartSpace(self):
       punctation = ('.', ',', ';', ':', '!', '?', '(', ')', '[', ']', '{', '}')
       def startsWithPunctation(x):
          for p in punctation:
             if x.startswith(p):
                return True
          return False
-      def fun(document, cursor, item):
+      def fun(item):
          if self._isWord(item) and not startsWithPunctation(self._getWord(item)):
-            self.insertString(document, cursor, ' ')
+            self.insertString(' ')
          return True
       self._hookRender = fun
 
-   def render(self, document, cursor, item, lookAhead = None):
+   def render(self, item, lookAhead = None):
       if self._hookRender:
          hr = self._hookRender
          self._hookRender = None
-         if not hr(document, cursor, item):
+         if not hr(item):
             return
       if type(item) == str or type(item) == unicode:
-         self.renderWord(document, cursor, item, lookAhead)
+         self.renderWord(item, lookAhead)
       elif type(item) == list or type(item) == tuple:
          for index, itm in enumerate(item):
             if self._hookRender:
                hr = self._hookRender
                self._hookRender = None
-               if not hr(document, cursor, itm):
+               if not hr(itm):
                   return
             if index+1 < len(item):
-               self.render(document, cursor, itm, item[index+1])
+               self.render(itm, item[index+1])
             else:
-               self.render(document, cursor, itm, None)
+               self.render(itm, None)
       elif type(item) == dict:
          itemType = item['type']
          if itemType == 'ItemWord':
-            self.renderWord(document, cursor, item['ItemWord'], lookAhead)
+            self.renderWord(item['ItemWord'], lookAhead)
          elif itemType == 'ItemDocumentContainer':
-            self.renderContainer(document, cursor, item['ItemDocumentContainer'])
+            self.renderContainer(item['ItemDocumentContainer'])
          elif itemType == 'ItemLinebreak':
-            self.renderLinebreak(document, cursor)
+            self.renderLinebreak()
          elif itemType == 'ItemMetaTag':
-            self.renderMetaTag(document, cursor, item['ItemMetaTag'])
+            self.renderMetaTag(item['ItemMetaTag'])
          elif itemType == 'ItemImage':
-            self.renderImage(document, cursor, item['ItemImage'])
+            self.renderImage(item['ItemImage'])
          else:
             raise RuntimeError('Cannot render item type: %s' % itemType)
       else:
@@ -245,10 +249,10 @@ class Renderer(object):
 
    # The main rendering function. Will be called from the "compiler"
    # chain.
-   def renderJson(self, document, cursor, encodedDoc):
-      self.render(document, cursor, json.loads(encodedDoc))
+   def renderJson(self, encodedDoc):
+      self.render(json.loads(encodedDoc))
       for fun in self.afterRendering:
-         fun(document, cursor)
+         fun(self)
  
    def doAfterRendering(self, f):
       self.afterRendering.append(f)
@@ -264,17 +268,17 @@ class Renderer(object):
          if par.supportsService("com.sun.star.text.Paragraph"):
             par.ParaStyleName = parStyle
 
-   def changeParaStyle(self, cursor, newStyle):
-      old = cursor.ParaStyleName
-      cursor.ParaStyleName = newStyle
+   def changeParaStyle(self, newStyle):
+      old = self._cursor.ParaStyleName
+      self._cursor.ParaStyleName = newStyle
       return old
 
-   def optimalTableWidth(self, document, table):
-      document.getCurrentController().select(table)
-      vc = document.getCurrentController().getViewCursor()
+   def optimalTableWidth(self, table):
+      self._document.getCurrentController().select(table)
+      vc = self._document.getCurrentController().getViewCursor()
       vc.gotoEnd(True)
       vc.gotoEnd(True)
-      provider = document.getCurrentController().Frame
+      provider = self._document.getCurrentController().Frame
       dispatcher = self.createUnoService("com.sun.star.frame.DispatchHelper")
       dispatcher.executeDispatch(provider, ".uno:SetOptimalColumnWidth", "", 0, ())
       vc.goDown(1, False)
@@ -301,26 +305,26 @@ class Renderer(object):
          size.Height = maxHeight
       return size
    
-   def getOrCreateSequenceFieldMaster(self, document, name):
-      masters = document.getTextFieldMasters()
+   def getOrCreateSequenceFieldMaster(self, name):
+      masters = self._document.getTextFieldMasters()
       fName = "com.sun.star.text.FieldMaster.SetExpression." + name
       if not masters.hasByName(fName):
-         masterField = document.createInstance("com.sun.star.text.FieldMaster.SetExpression")
+         masterField = self._document.createInstance("com.sun.star.text.FieldMaster.SetExpression")
          masterField.Name = name
          masterField.SubType = SEQUENCE
       else:
          masterField = masters.getByName(fName)
       return masterField
 
-   def createSequenceField(self, document, name):
-      field = document.createInstance("com.sun.star.text.TextField.SetExpression")
+   def createSequenceField(self, name):
+      field = self._document.createInstance("com.sun.star.text.TextField.SetExpression")
       field.NumberingType = ARABIC
-      field.attachTextFieldMaster(self.getOrCreateSequenceFieldMaster(document, name))
+      field.attachTextFieldMaster(self.getOrCreateSequenceFieldMaster(name))
       field.Content = name + " + 1"
       return field
 
    # Provide sizes in 1/100 mm if you need to.
-   def _insertImage(self, document, cursor, path, inline = False, width = None, 
+   def _insertImage(self, path, inline = False, width = None, 
                     height = None, scale = None, vOffset = None):
 
       if platform.platform().lower().startswith('win'):
@@ -330,7 +334,7 @@ class Renderer(object):
 
       # This is pure crap. OOo.. WTF is wrong with you..?
       # We'll first insert the image into the internal bitmap table
-      bitmaps = document.createInstance('com.sun.star.drawing.BitmapTable')
+      bitmaps = self._document.createInstance('com.sun.star.drawing.BitmapTable')
       try:
          internalUrl = bitmaps.getByName(url)
       except:
@@ -339,13 +343,14 @@ class Renderer(object):
 
       # Now insert the image, *NOT* using the source from the internal
       # bitmap table, but instead using the external URL.
-      graph = document.createInstance("com.sun.star.text.TextGraphicObject")
+      graph = self._document.createInstance("com.sun.star.text.TextGraphicObject")
       if inline:
          graph.AnchorType = AS_CHARACTER
-      document.Text.insertTextContent(cursor, graph, False)
+      self._document.Text.insertTextContent(self._cursor, graph, False)
 
       graph.GraphicURL = url
 
+      # XXX Yes, I know. It's super hacky.
       time.sleep(0.1)
 
       # Now we can correctly determine the image size
@@ -385,77 +390,77 @@ class Renderer(object):
 
       return graph
 
-   def insertInlineImage(self, document, cursor, path, vOffset):
-      self.insertString(document, cursor, ' ')
-      self._insertImage(document, cursor, path, inline = True, scale = 0.15, vOffset = vOffset)
-      self.insertString(document, cursor, ' ')
+   def insertInlineImage(self, path, vOffset):
+      self.insertString(' ')
+      self._insertImage(path, inline = True, scale = 0.15, vOffset = vOffset)
+      self.insertString(' ')
 
-   def insertImage(self, document, cursor, path, caption, labelName):
+   def insertImage(self, path, caption, labelName):
       CAPTION_TITLE=self.i18n['figure']
 
-      document.Text.insertControlCharacter(cursor, PARAGRAPH_BREAK, False)
-      self._insertImage(document, cursor, path)
+      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self._insertImage(path)
 
-      oldStyle = self.changeParaStyle(cursor, self.STYLE_FIGURE_CAPTION)
-      field = self.createSequenceField(document, CAPTION_TITLE)
-      self.insertString(document, cursor, CAPTION_TITLE + ' ')
-      document.Text.insertTextContent(cursor, field, False)
-      self.insertString(document, cursor, ' - ')
-      self.insertString(document, cursor, caption)
+      oldStyle = self.changeParaStyle(self.STYLE_FIGURE_CAPTION)
+      field = self.createSequenceField(CAPTION_TITLE)
+      self.insertString(CAPTION_TITLE + ' ')
+      self._document.Text.insertTextContent(self._cursor, field, False)
+      self.insertString(' - ')
+      self.insertString(caption)
 
-      document.Text.insertControlCharacter(cursor, PARAGRAPH_BREAK, False)
-      self.changeParaStyle(cursor, oldStyle)
+      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self.changeParaStyle(oldStyle)
 
       # Remember the number of the current image, so that we'll later
       # be able to reference it properly.
       cnt = len(self.Images)
       self.Images[labelName] = cnt
 
-   def insertUListItem(self, document, cursor, content):
-      document.Text.insertControlCharacter(cursor, PARAGRAPH_BREAK, False)
-      cursor.ParaStyleName = self.STYLE_LIST_1 # % global_currentListLevel
-      cursor.NumberingLevel = self.currentListLevel - 1
-      self.render(document, cursor, content)
+   def insertUListItem(self, content):
+      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self._cursor.ParaStyleName = self.STYLE_LIST_1 # % global_currentListLevel
+      self._cursor.NumberingLevel = self.currentListLevel - 1
+      self.render(content)
 
-   def insertOListItem(self, document, cursor, content, startVal = None):
-      document.Text.insertControlCharacter(cursor, PARAGRAPH_BREAK, False)
-      cursor.ParaStyleName = self.STYLE_NUMBERING_1 # % global_currentListLevel
-      cursor.NumberingLevel = self.currentListLevel - 1
+   def insertOListItem(self, content, startVal = None):
+      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self._cursor.ParaStyleName = self.STYLE_NUMBERING_1 # % global_currentListLevel
+      self._cursor.NumberingLevel = self.currentListLevel - 1
       if startVal != None:
-         cursor.NumberingStartValue = startVal
-      self.render(document, cursor, content)
+         self._cursor.NumberingStartValue = startVal
+      self.render(content)
 
-   def insertString(self, document, cursor, text):
-      document.Text.insertString(cursor, text, False)
+   def insertString(self, text):
+      self._document.Text.insertString(self._cursor, text, False)
 
-   def insertFootnote(self, document, cursor, content):
-      fn = document.createInstance("com.sun.star.text.Footnote")
-      document.Text.insertTextContent(cursor, fn, False)
+   def insertFootnote(self, content):
+      fn = self._document.createInstance("com.sun.star.text.Footnote")
+      self._document.Text.insertTextContent(self._cursor, fn, False)
       fn.insertString(fn.createTextCursor(), content, False)
-      self.smartSpace(document, cursor)
+      self.smartSpace()
 
-   def insertBookmark(self, document, cursor, name):
-      bm = document.createInstance("com.sun.star.text.Bookmark")
+   def insertBookmark(self, name):
+      bm = self._document.createInstance("com.sun.star.text.Bookmark")
       bm.Name = name
-      document.Text.insertTextContent(cursor, bm, False)
+      self._document.Text.insertTextContent(self._cursor, bm, False)
 
-   def insertReferenceMark(self, document, cursor, name):
-      bm = document.createInstance("com.sun.star.text.ReferenceMark")
+   def insertReferenceMark(self, name):
+      bm = self._document.createInstance("com.sun.star.text.ReferenceMark")
       bm.Name = name
-      document.Text.insertTextContent(cursor, bm, False)
+      self._document.Text.insertTextContent(self._cursor, bm, False)
 
-   def insertReference(self, document, cursor, name):
-      field = document.createInstance("com.sun.star.text.textfield.GetReference")
+   def insertReference(self, name):
+      field = self._document.createInstance("com.sun.star.text.textfield.GetReference")
       field.ReferenceFieldPart = CHAPTER
       field.ReferenceFieldSource = REFERENCE_MARK
       field.SourceName = name
-      self.insertString(document, cursor, " ")
-      document.Text.insertTextContent(cursor, field, False)
-      document.getTextFields().refresh()
-      document.refresh()
-      self.smartSpace(document, cursor)
+      self.insertString(" ")
+      self._document.Text.insertTextContent(self._cursor, field, False)
+      self._document.getTextFields().refresh()
+      self._document.refresh()
+      self.smartSpace()
 
-   def insertImageReference(self, document, cursor, name):
+   def insertImageReference(self, name):
       # Fix for the nasty double reference problem.
       # Normally, it would insert two bookmarks with the
       # same name, which will cause tons of trouble.
@@ -464,12 +469,13 @@ class Renderer(object):
       while refName in self.knownImageRefs:
          refName = 'X' + refName
       self.knownImageRefs.append(refName)
-      self.insertBookmark(document, cursor, refName)
+      self.insertBookmark(refName)
 
-      def do_insert_imageref(document, cursor):
-         where = document.getBookmarks().getByName(refName).getAnchor()
-         cursor = where
-         field = document.createInstance("com.sun.star.text.textfield.GetReference")
+      def do_insert_imageref(self):
+         where = self._document.getBookmarks().getByName(refName).getAnchor()
+         oldCur = self._cursor
+         self._cursor = where
+         field = self._document.createInstance("com.sun.star.text.textfield.GetReference")
          field.ReferenceFieldPart = CATEGORY_AND_NUMBER
          field.ReferenceFieldSource = SEQUENCE_FIELD
          field.SourceName = self.i18n['figure']
@@ -478,34 +484,35 @@ class Renderer(object):
          field.SequenceNumber = self.Images[name] 
          # Inserting the space and the field in reverse content, because the
          # "cursor" is not going to be updated on these operations.
-         self.smartSpace(document, cursor)
-         document.Text.insertTextContent(cursor, field, False)
+         self.smartSpace()
+         self._document.Text.insertTextContent(self._cursor, field, False)
          # Also, insert a space before the reference
-         self.insertString(document, cursor, " ")
-         document.getTextFields().refresh()
-         document.refresh()
+         self.insertString(" ")
+         self._document.getTextFields().refresh()
+         self._document.refresh()
+         self._cursor = oldCur
 
       self.doAfterRendering(do_insert_imageref)
 
-   def insertTableOfContents(self, document, cursor):
-      index = document.createInstance("com.sun.star.text.ContentIndex")
+   def insertTableOfContents(self):
+      index = self._document.createInstance("com.sun.star.text.ContentIndex")
       index.CreateFromOutline = True
-      document.Text.insertTextContent(cursor, index, False)
-      def updateToc(document, cursor):
+      self._document.Text.insertTextContent(self._cursor, index, False)
+      def updateToc(self):
          index.update()
       self.doAfterRendering(updateToc)
 
-   def insertPageBreak(self, document, cursor):
-      cursor.PageDescName = cursor.PageStyleName
+   def insertPageBreak(self):
+      self._cursor.PageDescName = self._cursor.PageStyleName
 
-   def insertTable(self, document, cursor, tableContent):
+   def insertTable(self, tableContent):
       numRows = len(tableContent)
       numCols = max(list(map(len, tableContent)))
    
-      text = document.Text
-      table = document.createInstance("com.sun.star.text.TextTable")
+      text = self._document.Text
+      table = self._document.createInstance("com.sun.star.text.TextTable")
       table.initialize(numRows, numCols)
-      text.insertTextContent(cursor, table, 0)
+      text.insertTextContent(self._cursor, table, 0)
    
       for numRow, row in enumerate(tableContent):
          for numCol, cellContent in enumerate(row):
@@ -518,54 +525,57 @@ class Renderer(object):
    
             tmpCur = cell.Text.createTextCursor()
             tmpCur.gotoEnd(False)
-            self.render(cell, tmpCur, cellContent)
-   
-      self.optimalTableWidth(document, table)
+            oldCur = self._cursor
+            oldDoc = self._document
+            self._cursor = tmpCur
+            self._document = cell
 
-   def insertHeading(self, document, cursor,
-                     headingLevel, headingText):
+            self.render(cellContent)
+
+            self._document = oldDoc
+            self._cursor = oldCur
+   
+      self.optimalTableWidth(table)
+
+   def insertHeading(self, headingLevel, headingText):
       if headingLevel > 4:
          raise RuntimeError('Illegal heading level!')
 
-      self.render(document, cursor, headingText)
-      cursor.ParaStyleName = self.STYLE_PARAM_HEADING % headingLevel
-      headingNumber = cursor.ListLabelString
+      self.render(headingText)
+      self._cursor.ParaStyleName = self.STYLE_PARAM_HEADING % headingLevel
+      headingNumber = self._cursor.ListLabelString
 
-      document.Text.insertControlCharacter(cursor, PARAGRAPH_BREAK, False)
-      cursor.ParaStyleName = self.STYLE_STANDARD_TEXT
+      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self._cursor.ParaStyleName = self.STYLE_STANDARD_TEXT
 
       self.CurrentHeading = (headingLevel, headingText, headingNumber)
 
-   def insertBoldFace(self, document, cursor,
-                      text):
-      cursor.CharWeight = BOLD
-      self.render(document, cursor, text)
-      cursor.setPropertyToDefault("CharWeight")
+   def insertBoldFace(self, text):
+      self._cursor.CharWeight = BOLD
+      self.render(text)
+      self._cursor.setPropertyToDefault("CharWeight")
 
-   def insertSourceCode(self, document, cursor,
-                        text):
-      document.Text.insertControlCharacter(cursor, PARAGRAPH_BREAK, False)
-      oldStyle = self.changeParaStyle(cursor, self.STYLE_SOURCE_CODE)
+   def insertSourceCode(self, text):
+      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      oldStyle = self.changeParaStyle(self.STYLE_SOURCE_CODE)
    
-      self.render(document, cursor, text)
+      self.render(text)
    
-      document.Text.insertControlCharacter(cursor, PARAGRAPH_BREAK, False)
-      self.changeParaStyle(cursor, oldStyle)
+      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self.changeParaStyle(oldStyle)
 
-   def insertInlineSourceCode(self, document, cursor,
-                              text):
-      cursor.CharStyleName = self.STYLE_INLINE_SOURCE_CODE
-      self.insertString(document, cursor, ' ')
-      self.render(document, cursor, text)
-      self.smartSpace(document, cursor)
+   def insertInlineSourceCode(self, text):
+      self._cursor.CharStyleName = self.STYLE_INLINE_SOURCE_CODE
+      self.insertString(' ')
+      self.render(text)
+      self.smartSpace()
       # cursor.CharStyleName = "Default"
       # Thanks, joern.
-      cursor.setPropertyToDefault("CharStyleName")
+      self._cursor.setPropertyToDefault("CharStyleName")
 
-   def insertParagraph(self, document, cursor,
-                       text):
-      self.render(document, cursor, text)
-      document.Text.insertControlCharacter(cursor, PARAGRAPH_BREAK, False)
+   def insertParagraph(self, text):
+      self.render(text)
+      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
 
 class VanillaRenderer(Renderer):
    def __init__(self):
@@ -589,8 +599,8 @@ class VanillaRenderer(Renderer):
       }
       self.changeLanguage('en')
 
-   def handleCustomMetaTag(self, document, cursor, tag):
+   def handleCustomMetaTag(self, tag):
       pass
 
-   def handleCustomMetaContainer(self, properties, document, cursor, content):
+   def handleCustomMetaContainer(self, properties, content):
       pass

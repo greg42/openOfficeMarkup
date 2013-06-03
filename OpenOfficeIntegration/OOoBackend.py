@@ -77,8 +77,8 @@ class OpenOfficeBackend(object):
       self._doc.addCloseListener(self._listener)
 
    def renderWith(self, renderer, content, *args, **kw):
-      renderer.renderJson(self._doc, self._textCursor, content, *args,
-                          **kw)
+      renderer.init(self._doc, self._textCursor)
+      renderer.renderJson(content, *args, **kw)
 
    def saveAs(self, outFile):
       if outFile.upper().endswith('.PDF'):
