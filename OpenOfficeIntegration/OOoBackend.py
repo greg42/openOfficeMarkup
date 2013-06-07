@@ -63,6 +63,9 @@ class OpenOfficeBackend(object):
        pathname = "file://" + pathname
        return pathname 
 
+   def _isTextDoc(self, path):
+      return path.endswith('.ott')
+
    def loadTemplate(self, templatePath):
       url = self._convertToURL(os.path.realpath(templatePath))
       args = (uno.createUnoStruct('com.sun.star.beans.PropertyValue'),)
@@ -72,7 +75,11 @@ class OpenOfficeBackend(object):
          self._doc = self._desktop.loadComponentFromURL(url, '_blank', 0, args)
       else:
          self._doc = self._desktop.loadComponentFromURL(url, '_blank', 0, ())
-      self._textCursor = self._doc.Text.createTextCursor()
+      
+      if self._isTextDoc(templatePath):
+         self._textCursor = self._doc.Text.createTextCursor()
+      else:
+         self._textCursor = None
       self._listener = myCloseListener(self._doc)
       self._doc.addCloseListener(self._listener)
 
