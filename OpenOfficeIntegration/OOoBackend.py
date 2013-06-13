@@ -94,6 +94,8 @@ class OpenOfficeBackend(object):
          args[0].Value = 'writer_pdf_Export'
       elif outFile.upper().endswith('.ODT'):
          args = ()
+      elif outFile.upper().endswith('.OTS'):
+         args = ()
       else:
          raise RuntimeError('Unknown output file format.')
       self._doc.storeToURL(self._convertToURL(os.path.realpath(outFile)), args)
