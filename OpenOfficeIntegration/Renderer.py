@@ -569,8 +569,8 @@ class Renderer(object):
       self.insertString(' ')
       self.render(text)
       self.smartSpace()
-      # cursor.CharStyleName = "Default"
       # Thanks, joern.
+      self._cursor.CharStyleName = "Default"
       self._cursor.setPropertyToDefault("CharStyleName")
 
    def insertParagraph(self, text):
