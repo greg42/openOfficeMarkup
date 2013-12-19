@@ -25,6 +25,7 @@ from com.sun.star.lang import XMain
 from com.sun.star.awt.FontWeight import BOLD, NORMAL
 from com.sun.star.beans import PropertyValue
 from com.sun.star.beans.PropertyState import DIRECT_VALUE
+from com.sun.star.lang import Locale
 
 import traceback
 import os
@@ -46,6 +47,7 @@ class Renderer(object):
       self.Images = {}
       self.knownImageRefs = []
       self._hookRender = None
+      self.languageStrings = {}
 
    def init(self, document, cursor):
       self._cursor = cursor
@@ -63,6 +65,13 @@ class Renderer(object):
          del self.i18n[key]
       for key in myi18n:
          self.i18n[key] = myi18n[key]
+
+      if lang in self.languageStrings:
+         language, country = self.languageStrings[lang]
+         loc = Locale()
+         loc.Language = language
+         loc.Country = country
+         self._document.CharLocale = loc
 
    def renderWord(self, string, lookAhead = None):
       self.insertString(string)
@@ -597,7 +606,7 @@ class VanillaRenderer(Renderer):
       self.custom_i18n['en'] = {
          'figure': 'Figure',
       }
-      self.changeLanguage('en')
+      self.languageStrings['en'] = ("en", "US")
 
    def handleCustomMetaTag(self, tag):
       pass
