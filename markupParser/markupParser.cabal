@@ -17,8 +17,8 @@ cabal-version:       >=1.8
 library
   exposed-modules:     Text.Udoc.DocumentParser, Text.Udoc.Document
   -- other-modules:       
-  build-depends:       base ==4.5.*, parsec ==3.1.*, mtl ==2.1.*, json ==0.7.*, MissingH ==1.2.*, transformers ==0.3.*, indents ==0.3.*
+  build-depends:       base, parsec ==3.1.*, mtl ==2.1.*, json ==0.7.*, MissingH ==1.2.*, transformers ==0.3.*, indents ==0.3.*
 
 Executable parseUdoc
   Main-is:           parseUdoc.hs
-  Build-Depends:     base ==4.5.*, parsec ==3.1.*, mtl ==2.1.*, json ==0.7.*, MissingH ==1.2.*, transformers ==0.3.*, indents ==0.3.*, markupParser
+  Build-Depends:     base, parsec ==3.1.*, mtl ==2.1.*, json ==0.7.*, MissingH ==1.2.*, transformers ==0.3.*, indents ==0.3.*, markupParser

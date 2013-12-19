@@ -73,6 +73,12 @@ squareBrCommand = between (char '[') (char ']') (do ret <- command; spaces; retu
 inlineSource = do (char '{' >> return ())
                   return ("_s", [])
 
+{-
+comment = do (string "/*" >> return ())
+             (many $ noneOf "" >> return ())
+             (string "*/" >> return ())
+-}
+
 -- Helper functions for working with association lists
 getMandatory keys aList = mapM ((flip lookup) aList) keys
 mandRename mandKeyName aList =
@@ -118,6 +124,15 @@ extendedCommandName name = try (do (name', args) <- extendedCommand'
                                      else do fail ""
                                ) <?> "the tag [" ++ name ++ "]"
 
+removeTrailingNewline items =
+   init items ++ nl (last items)
+   where nl (ItemWord w) = [ItemWord $ stripLastNewline w]
+         nl x = [x]
+
+stripLastNewline s
+   | last s == '\n' = init s
+   | otherwise = s
+
 -- Handle an extended command. This is called once a command
 -- has been found. It's responsible for returning the appropriate
 -- data structure for the parse tree.
@@ -141,7 +156,7 @@ handleExtendedCommand name args handleSpecialCommand =
                     return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineSource")]) source
       "source" -> do skipEmptyLines
                      source <- manyTill (verbatimContent) (extendedCommandName "/source")
-                     return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "source")]) source
+                     return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "source")]) (removeTrailingNewline source)
       "label" -> handleLab args
       "ref"   -> handleRef args
       "imgref" -> handleImgRef args
