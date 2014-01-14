@@ -52,6 +52,7 @@ class Renderer(object):
    def init(self, document, cursor):
       self._cursor = cursor
       self._document = document
+      self._realDocument = document
 
    def handleCustomMetaContainer(self, properties, content):
       raise NotImplementedError
@@ -318,7 +319,7 @@ class Renderer(object):
       masters = self._document.getTextFieldMasters()
       fName = "com.sun.star.text.FieldMaster.SetExpression." + name
       if not masters.hasByName(fName):
-         masterField = self._document.createInstance("com.sun.star.text.FieldMaster.SetExpression")
+         masterField = self._realDocument.createInstance("com.sun.star.text.FieldMaster.SetExpression")
          masterField.Name = name
          masterField.SubType = SEQUENCE
       else:
@@ -326,7 +327,7 @@ class Renderer(object):
       return masterField
 
    def createSequenceField(self, name):
-      field = self._document.createInstance("com.sun.star.text.TextField.SetExpression")
+      field = self._realDocument.createInstance("com.sun.star.text.TextField.SetExpression")
       field.NumberingType = ARABIC
       field.attachTextFieldMaster(self.getOrCreateSequenceFieldMaster(name))
       field.Content = name + " + 1"
@@ -343,7 +344,7 @@ class Renderer(object):
 
       # This is pure crap. OOo.. WTF is wrong with you..?
       # We'll first insert the image into the internal bitmap table
-      bitmaps = self._document.createInstance('com.sun.star.drawing.BitmapTable')
+      bitmaps = self._realDocument.createInstance('com.sun.star.drawing.BitmapTable')
       try:
          internalUrl = bitmaps.getByName(url)
       except:
@@ -352,7 +353,7 @@ class Renderer(object):
 
       # Now insert the image, *NOT* using the source from the internal
       # bitmap table, but instead using the external URL.
-      graph = self._document.createInstance("com.sun.star.text.TextGraphicObject")
+      graph = self._realDocument.createInstance("com.sun.star.text.TextGraphicObject")
       if inline:
          graph.AnchorType = AS_CHARACTER
       self._document.Text.insertTextContent(self._cursor, graph, False)
@@ -443,30 +444,30 @@ class Renderer(object):
       self._document.Text.insertString(self._cursor, text, False)
 
    def insertFootnote(self, content):
-      fn = self._document.createInstance("com.sun.star.text.Footnote")
+      fn = self._realDocument.createInstance("com.sun.star.text.Footnote")
       self._document.Text.insertTextContent(self._cursor, fn, False)
       fn.insertString(fn.createTextCursor(), content, False)
       self.smartSpace()
 
    def insertBookmark(self, name):
-      bm = self._document.createInstance("com.sun.star.text.Bookmark")
+      bm = self._realDocument.createInstance("com.sun.star.text.Bookmark")
       bm.Name = name
       self._document.Text.insertTextContent(self._cursor, bm, False)
 
    def insertReferenceMark(self, name):
-      bm = self._document.createInstance("com.sun.star.text.ReferenceMark")
+      bm = self._realDocument.createInstance("com.sun.star.text.ReferenceMark")
       bm.Name = name
       self._document.Text.insertTextContent(self._cursor, bm, False)
 
    def insertReference(self, name):
-      field = self._document.createInstance("com.sun.star.text.textfield.GetReference")
+      field = self._realDocument.createInstance("com.sun.star.text.textfield.GetReference")
       field.ReferenceFieldPart = CHAPTER
       field.ReferenceFieldSource = REFERENCE_MARK
       field.SourceName = name
       self.insertString(" ")
       self._document.Text.insertTextContent(self._cursor, field, False)
-      self._document.getTextFields().refresh()
-      self._document.refresh()
+      self._realDocument.getTextFields().refresh()
+      self._realDocument.refresh()
       self.smartSpace()
 
    def insertImageReference(self, name):
@@ -484,7 +485,7 @@ class Renderer(object):
          where = self._document.getBookmarks().getByName(refName).getAnchor()
          oldCur = self._cursor
          self._cursor = where
-         field = self._document.createInstance("com.sun.star.text.textfield.GetReference")
+         field = self._realDocument.createInstance("com.sun.star.text.textfield.GetReference")
          field.ReferenceFieldPart = CATEGORY_AND_NUMBER
          field.ReferenceFieldSource = SEQUENCE_FIELD
          field.SourceName = self.i18n['figure']
@@ -504,7 +505,7 @@ class Renderer(object):
       self.doAfterRendering(do_insert_imageref)
 
    def insertTableOfContents(self):
-      index = self._document.createInstance("com.sun.star.text.ContentIndex")
+      index = self._realDocument.createInstance("com.sun.star.text.ContentIndex")
       index.CreateFromOutline = True
       self._document.Text.insertTextContent(self._cursor, index, False)
       def updateToc(self):
@@ -519,7 +520,7 @@ class Renderer(object):
       numCols = max(list(map(len, tableContent)))
    
       text = self._document.Text
-      table = self._document.createInstance("com.sun.star.text.TextTable")
+      table = self._realDocument.createInstance("com.sun.star.text.TextTable")
       table.initialize(numRows, numCols)
       text.insertTextContent(self._cursor, table, 0)
    
@@ -537,6 +538,7 @@ class Renderer(object):
             oldCur = self._cursor
             oldDoc = self._document
             self._cursor = tmpCur
+            self._realDocument = self._document
             self._document = cell
 
             self.render(cellContent)
