@@ -144,10 +144,12 @@ handleExtendedCommand name args handleSpecialCommand =
       "br"    -> do return $ ItemLinebreak
       "meta"  -> do return $ ItemMetaTag args
       "pb"    -> do return $ ItemMetaTag [("type", "pagebreak")]
-      "image" -> do return $ ItemImage (Image (fromJust (lookup "path"    args))
-                                              (fromJust (lookup "caption" args))
-                                              (fromJust (lookup "label"   args))
-                                       )
+      "image" -> do if (isNothing(lookup "label" args) || isNothing(lookup "path" args) || isNothing(lookup "caption" args))
+                       then fail "Image tag needs label caption and path"
+                       else return $ ItemImage (Image (fromJust (lookup "path"    args))
+                                                (fromJust (lookup "caption" args))
+                                                (fromJust (lookup "label"   args))
+                                               )
       "table" -> do skipEmptyLines
                     rows <- manyTill (do r <- tableRow handleSpecialCommand; skipMany1 $ char '\n'; return r) 
                                      (extendedCommandName "/table")
