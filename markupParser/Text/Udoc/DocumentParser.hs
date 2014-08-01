@@ -157,7 +157,7 @@ handleExtendedCommand name args handleSpecialCommand =
       "_s"    -> do source <- manyTill inlineVerbatimContent (char '}' >> spaces)
                     return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineSource")]) source
       "source" -> do skipEmptyLines
-                     source <- manyTill (verbatimContent) (extendedCommandName "/source")
+                     source <- manyTill (verbatimContent "[/source]") (extendedCommandName "/source")
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "source")]) (removeTrailingNewline source)
       "label" -> handleLab args
       "ref"   -> handleRef args
@@ -215,21 +215,21 @@ tableRow hsp = do
 
 -- Contents of a source code section. Note that spaces, newlines and
 -- tabs will be left as they are. 
-verbatimContent = try verbatimBold <|> verbatimText
+verbatimContent closingTag = try (verbatimBold closingTag) <|> (verbatimText closingTag)
 
 -- Helper for bold text in verbatim content
-verbatimBold = do
+verbatimBold closingTag = do
    string "[b]"
-   bold <- manyTill verbatimText (extendedCommandName "/b")
+   bold <- manyTill (verbatimText closingTag) (extendedCommandName "/b")
    return $ ItemDocumentContainer $ DocumentBoldFace (bold)
 
 -- Contents of the verbatim container. That might be everything, but
 -- we handle [b] and [/b], in order to allow for bold parts in source
 -- code.
-verbatimText = do 
+verbatimText closingTag = do 
    result <- many1 (wordChar 
                     <|> oneOf "\n\t |{}\"]"
-                    <|> ( (notFollowedBy $ string "[/source]") >>
+                    <|> ( (notFollowedBy $ string closingTag) >>
                           (notFollowedBy $ string "[b]") >>
                           (notFollowedBy $ string "[/b]") >>
                           (char '[')
