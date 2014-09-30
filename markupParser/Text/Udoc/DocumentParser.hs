@@ -297,7 +297,10 @@ containerContentsUntil x hsp = do
 containerContentWithout x hsp = notFollowedBy x >> paragraphWithout x hsp
 
 containerContentBlock hsp = do
-   x <- many1 (containerContentOneLine hsp)
+   x <- many1 $ do
+      l <- containerContentOneLine hsp
+      spaces
+      return l
    spaces
    optional newline
    spaces
