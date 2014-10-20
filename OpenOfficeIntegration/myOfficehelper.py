@@ -32,7 +32,7 @@ class OpenOfficeInstance(object):
       if platform.startswith("win"):
           office += ".exe"
 
-      self._pidfile = "/tmp/recurity_renderer_OOinstance" #XXX Windows compat needed
+      self._pidfile = "/tmp/markup_renderer_OOinstance" #XXX Windows compat needed
       xLocalContext = uno.getComponentContext()
       self._resolver = xLocalContext.ServiceManager.createInstanceWithContext("com.sun.star.bridge.UnoUrlResolver", xLocalContext)
       self._socket = "host=127.0.0.1,port=2002,tcpNoDelay=1"
