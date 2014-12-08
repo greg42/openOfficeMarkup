@@ -48,6 +48,7 @@ class Renderer(object):
       self.knownImageRefs = []
       self._hookRender = None
       self.languageStrings = {}
+      self._lastItem = None
 
    def init(self, document, cursor):
       self._cursor = cursor
@@ -88,7 +89,8 @@ class Renderer(object):
       self.insertHeading(level, items)
 
    def renderBoldFace(self, items):
-      self.insertString(' ')
+      if self.needSpace():
+         self.insertString(' ')
       self.insertBoldFace(items)
       self.smartSpace()
 
@@ -208,7 +210,7 @@ class Renderer(object):
       return None
 
    def smartSpace(self):
-      punctation = ('.', ',', ';', ':', '!', '?', '(', ')', '[', ']', '{', '}')
+      punctation = ('.', ',', ';', ':', '!', '?')
       def startsWithPunctation(x):
          for p in punctation:
             if x.startswith(p):
@@ -219,6 +221,14 @@ class Renderer(object):
             self.insertString(' ')
          return True
       self._hookRender = fun
+
+   def needSpace(self):
+       w = self._getWord(self._lastItem)
+       if w != None:
+           if w.endswith('('):
+               return False
+           else:
+               return True
 
    def render(self, item, lookAhead = None):
       if self._hookRender:
@@ -256,6 +266,7 @@ class Renderer(object):
       else:
          raise RuntimeError("Cannot render %s (type: %s)" % ((str(item),
                                                         str(type(item)))))
+      self._lastItem = item
 
    # The main rendering function. Will be called from the "compiler"
    # chain.
@@ -281,6 +292,11 @@ class Renderer(object):
    def changeParaStyle(self, newStyle):
       old = self._cursor.ParaStyleName
       self._cursor.ParaStyleName = newStyle
+      return old
+
+   def changeCharStyle(self, newStyle):
+      old = self._cursor.CharStyleName
+      self._cursor.CharStyleName = newStyle
       return old
 
    def optimalTableWidth(self, table):
@@ -464,7 +480,8 @@ class Renderer(object):
       field.ReferenceFieldPart = CHAPTER
       field.ReferenceFieldSource = REFERENCE_MARK
       field.SourceName = name
-      self.insertString(" ")
+      if self.needSpace():
+         self.insertString(" ")
       self._document.Text.insertTextContent(self._cursor, field, False)
       self._realDocument.getTextFields().refresh()
       self._realDocument.refresh()
@@ -480,7 +497,9 @@ class Renderer(object):
          refName = 'X' + refName
       self.knownImageRefs.append(refName)
       self.insertBookmark(refName)
+      self.smartSpace()
 
+      space = self.needSpace()
       def do_insert_imageref(self):
          where = self._document.getBookmarks().getByName(refName).getAnchor()
          oldCur = self._cursor
@@ -494,10 +513,10 @@ class Renderer(object):
          field.SequenceNumber = self.Images[name] 
          # Inserting the space and the field in reverse content, because the
          # "cursor" is not going to be updated on these operations.
-         self.smartSpace()
          self._document.Text.insertTextContent(self._cursor, field, False)
          # Also, insert a space before the reference
-         self.insertString(" ")
+         if space:
+            self.insertString(" ")
          self._document.getTextFields().refresh()
          self._document.refresh()
          self._cursor = oldCur
@@ -522,6 +541,7 @@ class Renderer(object):
       text = self._document.Text
       table = self._realDocument.createInstance("com.sun.star.text.TextTable")
       table.initialize(numRows, numCols)
+      table.RepeatHeadline = True
       text.insertTextContent(self._cursor, table, 0)
    
       for numRow, row in enumerate(tableContent):
@@ -576,11 +596,15 @@ class Renderer(object):
       self.changeParaStyle(oldStyle)
 
    def insertInlineSourceCode(self, text):
-      self._cursor.CharStyleName = self.STYLE_INLINE_SOURCE_CODE
-      self.insertString(' ')
+      old = self.changeCharStyle(self.STYLE_INLINE_SOURCE_CODE)
+      if self.needSpace():
+         self.insertString(' ')
       self.render(text)
       self.smartSpace()
+      # Thanks, joern.
+      #self._cursor.CharStyleName = "Default Style"
       self._cursor.setPropertyToDefault("CharStyleName")
+      #self.changeCharStyle(old)
 
    def insertParagraph(self, text):
       self.render(text)
