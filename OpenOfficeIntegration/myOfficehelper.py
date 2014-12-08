@@ -35,7 +35,7 @@ class OpenOfficeInstance(object):
       self._pidfile = "/tmp/markup_renderer_OOinstance" #XXX Windows compat needed
       xLocalContext = uno.getComponentContext()
       self._resolver = xLocalContext.ServiceManager.createInstanceWithContext("com.sun.star.bridge.UnoUrlResolver", xLocalContext)
-      self._socket = "host=127.0.0.1,port=2002,tcpNoDelay=1"
+      self._socket = "name=markupRendererPipe"
 
       args = ["--invisible", "--nologo", "--nodefault", "--norestore", "--nofirststartwizard"]
       if headless:
@@ -45,7 +45,7 @@ class OpenOfficeInstance(object):
          cmdArray = ['"' + office + '"']
       else:
          cmdArray = [office]
-      cmdArray += args + ["--accept=socket,%s;urp;" % self._socket]
+      cmdArray += args + ["--accept=pipe,%s;urp" % self._socket]
       if( not os.path.isfile(self._pidfile)):
          self.pid = os.spawnv(os.P_NOWAIT, office, cmdArray)
          f = open(self._pidfile,"w")
@@ -60,7 +60,7 @@ class OpenOfficeInstance(object):
       context = None
       for _ in range(20):
           try:
-              context = self._resolver.resolve("uno:socket,host=localhost,port=2002;urp;StarOffice.ComponentContext")
+              context = self._resolver.resolve("uno:pipe,name=markupRendererPipe;urp;StarOffice.ComponentContext")
               break
           except NoConnectException:
               sleep(0.5)
