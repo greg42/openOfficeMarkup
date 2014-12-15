@@ -210,7 +210,7 @@ class Renderer(object):
       return None
 
    def smartSpace(self):
-      punctation = ('.', ',', ';', ':', '!', '?')
+      punctation = ('.', ',', ';', ':', '!', '?', '(', ')', '[', ']')
       def startsWithPunctation(x):
          for p in punctation:
             if x.startswith(p):
