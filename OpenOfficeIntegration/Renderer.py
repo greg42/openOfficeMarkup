@@ -313,7 +313,7 @@ class Renderer(object):
 
    def guessImageSize(self, image):
       # Maximum width and height in 1/100 mm
-      maxWidth = 120 * 100  # Template maximum width in millimeters is 150.
+      maxWidth = 150 * 100  # Template maximum width in millimeters is 150.
                             # Let's save some margin.
       maxHeight = 195 * 100 # Template maximum height in millimeters is 215.
 
