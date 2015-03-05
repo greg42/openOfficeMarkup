@@ -19,6 +19,7 @@ where
 import Text.JSON
 import Control.Monad.State
 import Data.Maybe
+import Control.Applicative
 
 mLookup a as = maybe (fail $ "No such element: " ++ a) return (lookup a as)
 
@@ -100,9 +101,12 @@ data DocumentContainer =   DocumentHeading   Heading [DocumentItem]
                          | DocumentOList     [(OListItem, [DocumentItem])]
                          | DocumentUList     [(UListItem, [DocumentItem])]
                          | DocumentTableRow  [[DocumentItem]]
-                         | DocumentTable     [DocumentContainer]
+                         | DocumentTable     (Maybe (String, String)) [DocumentContainer]
                          | DocumentMetaContainer [(String,String)] [DocumentItem]
                          deriving(Show)
+
+showJSON' (Just x) = showJSON x
+showJSON' Nothing = JSNull
 
 instance JSON DocumentContainer where
    showJSON (DocumentHeading heading items) = makeObj [ ("type", showJSON "DocumentHeading"),
@@ -122,9 +126,11 @@ instance JSON DocumentContainer where
                                               ("content", showJSON items)
                                             ]
 
-   showJSON (DocumentTable items) = makeObj [ ("type", showJSON "DocumentTable"),
-                                              ("content", showJSON items)
-                                            ]
+   showJSON (DocumentTable mCL items) = makeObj [ ("type", showJSON "DocumentTable"),
+                                                  ("content", showJSON items),
+                                                  ("caption", showJSON' $ fst <$> mCL),
+                                                  ("label", showJSON' $ snd <$> mCL)
+                                                ]
 
    showJSON (DocumentTableRow items) = makeObj [ ("type", showJSON "DocumentTableRow"),
                                               ("content", showJSON items)
@@ -147,7 +153,10 @@ instance JSON DocumentContainer where
          "DocumentParagraph" -> do thing <- getOne "content" ; return $ DocumentParagraph thing
          "DocumentOList"     -> do thing <- getOne "content" ; return $ DocumentOList thing
          "DocumentUList"     -> do thing <- getOne "content" ; return $ DocumentUList thing
-         "DocumentTable"     -> do thing <- getOne "content" ; return $ DocumentTable thing
+         "DocumentTable"     -> do thing <- getOne "content"
+                                   caption <- getOne "caption"
+                                   label   <- getOne "label"
+                                   return $ DocumentTable (((,)) <$> caption <*> label) thing
          "DocumentTableRow"  -> do thing <- getOne "content" ; return $ DocumentTableRow thing
          "DocumentMetaContainer"  -> do thing <- getOne "content" 
                                         prop  <- getOne "properties"
@@ -273,7 +282,7 @@ filterContainer func (DocumentUList content) =
 filterContainer func (DocumentTableRow content) =
    filterItems func (concat content)
 
-filterContainer func (DocumentTable content) =
+filterContainer func (DocumentTable _ content) =
    filterItems func (map ItemDocumentContainer content)
 
 filterContainer func (DocumentMetaContainer _ content) =

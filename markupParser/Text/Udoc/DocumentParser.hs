@@ -106,6 +106,7 @@ handleMetaTag t mand opt aList = getArgumentsOrFail mand opt aList (createMetaTa
 handleLab = handleMetaTag "label" [("name", "name")] []
 handleRef = handleMetaTag "ref" [("label", "label")] []
 handleImgRef = handleMetaTag "imgref" [("label", "label")] []
+handleTblRef = handleMetaTag "tblref" [("label", "label")] []
 createMetaContainer t props content = 
    ItemDocumentContainer $ DocumentMetaContainer ([("type", t)] ++ props) content
 
@@ -150,10 +151,11 @@ handleExtendedCommand name args handleSpecialCommand =
                                                 (fromJust (lookup "caption" args))
                                                 (fromJust (lookup "label"   args))
                                                )
-      "table" -> do skipEmptyLines
+      "table" -> do let mCL = ((,)) <$> lookup "caption" args <*> lookup "label" args
+                    skipEmptyLines
                     rows <- manyTill (do r <- tableRow handleSpecialCommand; skipMany1 $ char '\n'; return r) 
                                      (extendedCommandName "/table")
-                    return $ ItemDocumentContainer $ DocumentTable rows
+                    return $ ItemDocumentContainer $ DocumentTable mCL rows
       "_s"    -> do source <- manyTill inlineVerbatimContent (char '}' >> spaces)
                     return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineSource")]) source
       "source" -> do skipEmptyLines
@@ -162,6 +164,7 @@ handleExtendedCommand name args handleSpecialCommand =
       "label" -> handleLab args
       "ref"   -> handleRef args
       "imgref" -> handleImgRef args
+      "tblref" -> handleTblRef args
 
       -- If we end up here, we can at least check if the
       -- identified command is some special-purpose

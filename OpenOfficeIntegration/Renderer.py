@@ -45,7 +45,9 @@ class Renderer(object):
       self.CurrentHeading = (0, '')
       self.findingList = []
       self.Images = {}
+      self.Tables = {}
       self.knownImageRefs = []
+      self.knownTableRefs = []
       self._hookRender = None
       self.languageStrings = {}
       self._lastItem = None
@@ -113,9 +115,9 @@ class Renderer(object):
          # Ignore unknown meta container types..
          return
 
-   def renderTable(self, table):
+   def renderTable(self, table, caption, label):
       normTable = [x['content'] for x in table]
-      self.insertTable(normTable)
+      self.insertTable(normTable, caption, label)
 
    def renderUListItem(self, uli, content):
       self.insertUListItem(content)
@@ -157,7 +159,7 @@ class Renderer(object):
       elif containerType == 'DocumentParagraph':
          self.renderParagraph(container['content'])
       elif containerType == 'DocumentTable':
-         self.renderTable(container['content'])
+         self.renderTable(container['content'], container['caption'], container['label'])
       elif containerType == 'DocumentMetaContainer':
          self.renderMetaContainer(container['content'],
                              container['properties'])
@@ -189,6 +191,8 @@ class Renderer(object):
          self.insertReference(tag['label'])
       elif tag['type'] == 'imgref':
          self.insertImageReference(tag['label'])
+      elif tag['type'] == 'tblref':
+         self.insertTableReference(tag['label'])
       elif tag['type'] == 'pagebreak':
          self.insertPageBreak()
       elif tag['type'] == 'footnote':
@@ -523,6 +527,39 @@ class Renderer(object):
 
       self.doAfterRendering(do_insert_imageref)
 
+   def insertTableReference(self, name):
+      refName = "_do_tbl_ref_" + name
+      while refName in self.knownTableRefs:
+         refName = 'X' + refName
+      self.knownTableRefs.append(refName)
+      self.insertBookmark(refName)
+      self.smartSpace()
+
+      space = self.needSpace()
+      def do_insert_tableref(self):
+         where = self._document.getBookmarks().getByName(refName).getAnchor()
+         oldCur = self._cursor
+         self._cursor = where
+         field = self._realDocument.createInstance("com.sun.star.text.textfield.GetReference")
+         field.ReferenceFieldPart = CATEGORY_AND_NUMBER
+         field.ReferenceFieldSource = SEQUENCE_FIELD
+         field.SourceName = self.i18n['table']
+         if not name in self.Tables:
+            raise RuntimeError('Unknown table %s' % name)
+         field.SequenceNumber = self.Tables[name] 
+         # Inserting the space and the field in reverse content, because the
+         # "cursor" is not going to be updated on these operations.
+         self._document.Text.insertTextContent(self._cursor, field, False)
+         # Also, insert a space before the reference
+         if space:
+            self.insertString(" ")
+         self._document.getTextFields().refresh()
+         self._document.refresh()
+         self._cursor = oldCur
+
+      self.doAfterRendering(do_insert_tableref)
+
+
    def insertTableOfContents(self):
       index = self._realDocument.createInstance("com.sun.star.text.ContentIndex")
       index.CreateFromOutline = True
@@ -534,7 +571,7 @@ class Renderer(object):
    def insertPageBreak(self):
       self._cursor.PageDescName = self._cursor.PageStyleName
 
-   def insertTable(self, tableContent):
+   def insertTable(self, tableContent, caption, labelName):
       numRows = len(tableContent)
       numCols = max(list(map(len, tableContent)))
    
@@ -567,6 +604,23 @@ class Renderer(object):
             self._cursor = oldCur
    
       self.optimalTableWidth(table)
+
+      if caption != None and labelName != None:
+         CAPTION_TITLE=self.i18n['table']
+         oldStyle = self.changeParaStyle(self.STYLE_TABLE_CAPTION)
+         field = self.createSequenceField(CAPTION_TITLE)
+         self.insertString(CAPTION_TITLE + ' ')
+         self._document.Text.insertTextContent(self._cursor, field, False)
+         self.insertString(' - ')
+         self.insertString(caption)
+
+         self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+         self.changeParaStyle(oldStyle)
+
+         # Remember the number of the current table so that later we'll
+         # be able to reference it properly.
+         cnt = len(self.Tables)
+         self.Tables[labelName] = cnt
 
    def insertHeading(self, headingLevel, headingText):
       if headingLevel > 4:
@@ -615,6 +669,7 @@ class VanillaRenderer(Renderer):
       Renderer.__init__(self)
       self.STYLE_STANDARD_TEXT       = "Text body"
       self.STYLE_FIGURE_CAPTION      = "Text body"
+      self.STYLE_TABLE_CAPTION       = "Text body"
       self.STYLE_LIST_1              = "List 1"
       self.STYLE_NUMBERING_1         = "Numbering 1"
       self.STYLE_TITLE               = "Title"
@@ -629,6 +684,7 @@ class VanillaRenderer(Renderer):
       self.STYLE_TABLE_HEADING_BACKGROUND = 11111111
       self.custom_i18n['en'] = {
          'figure': 'Figure',
+         'table' : 'Table',
       }
       self.languageStrings['en'] = ("en", "US")
 

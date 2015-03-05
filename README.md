@@ -48,7 +48,9 @@ more details.
 * [pb] inserts a page break
 * [br] inserts a line break
 * [table] and [/table] insert a table. The columns are separated by the |
-  character.
+  character. Tables can have a label and a caption.
+* [tblref label=tbl] references a table (the referenced table obviously
+  has to have a caption and a label).
 ~~~
 
 This language is first parsed by small parser built with
