@@ -115,9 +115,9 @@ class Renderer(object):
          # Ignore unknown meta container types..
          return
 
-   def renderTable(self, table, caption, label):
+   def renderTable(self, table, caption, label, style):
       normTable = [x['content'] for x in table]
-      self.insertTable(normTable, caption, label)
+      self.insertTable(normTable, caption, label, style)
 
    def renderUListItem(self, uli, content):
       self.insertUListItem(content)
@@ -159,7 +159,7 @@ class Renderer(object):
       elif containerType == 'DocumentParagraph':
          self.renderParagraph(container['content'])
       elif containerType == 'DocumentTable':
-         self.renderTable(container['content'], container['caption'], container['label'])
+         self.renderTable(container['content'], container['caption'], container['label'], container['style'])
       elif containerType == 'DocumentMetaContainer':
          self.renderMetaContainer(container['content'],
                              container['properties'])
@@ -571,7 +571,7 @@ class Renderer(object):
    def insertPageBreak(self):
       self._cursor.PageDescName = self._cursor.PageStyleName
 
-   def insertTable(self, tableContent, caption, labelName):
+   def insertTable(self, tableContent, caption, labelName, style):
       numRows = len(tableContent)
       numCols = max(list(map(len, tableContent)))
    
@@ -584,7 +584,10 @@ class Renderer(object):
       for numRow, row in enumerate(tableContent):
          for numCol, cellContent in enumerate(row):
             cell = table.getCellByPosition(numCol, numRow)
-            if numRow == 0:
+            if numRow == 0 and (style == 'head_top' or style == 'matrix'):
+               cell.BackColor = self.STYLE_TABLE_HEADING_BACKGROUND
+               self.setParStyle(cell, self.STYLE_TABLE_HEADER)
+            if numCol == 0 and (style == 'head_left' or style == 'matrix'):
                cell.BackColor = self.STYLE_TABLE_HEADING_BACKGROUND
                self.setParStyle(cell, self.STYLE_TABLE_HEADER)
             else:

@@ -101,7 +101,7 @@ data DocumentContainer =   DocumentHeading   Heading [DocumentItem]
                          | DocumentOList     [(OListItem, [DocumentItem])]
                          | DocumentUList     [(UListItem, [DocumentItem])]
                          | DocumentTableRow  [[DocumentItem]]
-                         | DocumentTable     (Maybe (String, String)) [DocumentContainer]
+                         | DocumentTable     String (Maybe (String, String)) [DocumentContainer]
                          | DocumentMetaContainer [(String,String)] [DocumentItem]
                          deriving(Show)
 
@@ -126,11 +126,12 @@ instance JSON DocumentContainer where
                                               ("content", showJSON items)
                                             ]
 
-   showJSON (DocumentTable mCL items) = makeObj [ ("type", showJSON "DocumentTable"),
-                                                  ("content", showJSON items),
-                                                  ("caption", showJSON' $ fst <$> mCL),
-                                                  ("label", showJSON' $ snd <$> mCL)
-                                                ]
+   showJSON (DocumentTable style mCL items) = makeObj [ ("type", showJSON "DocumentTable"),
+                                                        ("content", showJSON items),
+                                                        ("caption", showJSON' $ fst <$> mCL),
+                                                        ("label", showJSON' $ snd <$> mCL),
+                                                        ("style", showJSON style)
+                                                      ]
 
    showJSON (DocumentTableRow items) = makeObj [ ("type", showJSON "DocumentTableRow"),
                                               ("content", showJSON items)
@@ -156,7 +157,8 @@ instance JSON DocumentContainer where
          "DocumentTable"     -> do thing <- getOne "content"
                                    caption <- getOne "caption"
                                    label   <- getOne "label"
-                                   return $ DocumentTable (((,)) <$> caption <*> label) thing
+                                   style   <- getOne "style"
+                                   return $ DocumentTable style (((,)) <$> caption <*> label) thing
          "DocumentTableRow"  -> do thing <- getOne "content" ; return $ DocumentTableRow thing
          "DocumentMetaContainer"  -> do thing <- getOne "content" 
                                         prop  <- getOne "properties"
@@ -282,7 +284,7 @@ filterContainer func (DocumentUList content) =
 filterContainer func (DocumentTableRow content) =
    filterItems func (concat content)
 
-filterContainer func (DocumentTable _ content) =
+filterContainer func (DocumentTable _ _ content) =
    filterItems func (map ItemDocumentContainer content)
 
 filterContainer func (DocumentMetaContainer _ content) =

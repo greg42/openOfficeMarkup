@@ -152,10 +152,11 @@ handleExtendedCommand name args handleSpecialCommand =
                                                 (fromJust (lookup "label"   args))
                                                )
       "table" -> do let mCL = ((,)) <$> lookup "caption" args <*> lookup "label" args
+                    let style = fromMaybe "head_top" $ lookup "style" args
                     skipEmptyLines
                     rows <- manyTill (do r <- tableRow handleSpecialCommand; skipMany1 $ char '\n'; return r) 
                                      (extendedCommandName "/table")
-                    return $ ItemDocumentContainer $ DocumentTable mCL rows
+                    return $ ItemDocumentContainer $ DocumentTable style mCL rows
       "_s"    -> do source <- manyTill inlineVerbatimContent (char '}' >> spaces)
                     return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineSource")]) source
       "source" -> do skipEmptyLines
