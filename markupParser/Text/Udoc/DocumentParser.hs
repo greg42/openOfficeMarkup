@@ -73,12 +73,6 @@ squareBrCommand = between (char '[') (char ']') (do ret <- command; spaces; retu
 inlineSource = do (char '{' >> return ())
                   return ("_s", [])
 
-{-
-comment = do (string "/*" >> return ())
-             (many $ noneOf "" >> return ())
-             (string "*/" >> return ())
--}
-
 -- Helper functions for working with association lists
 getMandatory keys aList = mapM ((flip lookup) aList) keys
 mandRename mandKeyName aList =
