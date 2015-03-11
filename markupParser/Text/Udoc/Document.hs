@@ -25,16 +25,156 @@ mLookup a as = maybe (fail $ "No such element: " ++ a) return (lookup a as)
 
 ------------------------ Data Definitions -----------------------------
 
-data OListItem = OListItem { oListItemIndent  :: Int,
-                             oListItemNumber  :: String
+{-| A container for other document items. A container is something that has
+    a content. You can think of a container as something similar to an
+    environment in LaTeX. -}
+data DocumentContainer =   DocumentHeading   Heading [DocumentItem]
+                         | DocumentBoldFace  [DocumentItem]
+                         | DocumentParagraph [DocumentItem]
+                         | DocumentOList     [(OListItem, [DocumentItem])]
+                         | DocumentUList     [(UListItem, [DocumentItem])]
+                         | DocumentTableRow  [[DocumentItem]]
+                         | DocumentTable     String (Maybe (String, String)) 
+                                             [DocumentContainer]
+                         | DocumentMetaContainer [(String,String)] [DocumentItem]
+                         deriving(Show)
+
+showJSON' (Just x) = showJSON x
+showJSON' Nothing = JSNull
+
+instance JSON DocumentContainer where
+   showJSON (DocumentHeading heading items) = 
+      makeObj [  ("type", showJSON "DocumentHeading")
+               , ("DocumentHeading", showJSON heading)
+               , ("content", showJSON items)
+              ]
+   showJSON (DocumentBoldFace items) = 
+      makeObj [  ("type", showJSON "DocumentBoldFace")
+               , ("content", showJSON items)
+              ]
+
+   showJSON (DocumentParagraph items) = 
+      makeObj [  ("type", showJSON "DocumentParagraph")
+               , ("content", showJSON items)
+              ]
+
+   showJSON (DocumentOList items) = 
+      makeObj [  ("type", showJSON "DocumentOList")
+               , ("content", showJSON items)
+              ]
+
+   showJSON (DocumentUList items) = 
+      makeObj [  ("type", showJSON "DocumentUList")
+               , ("content", showJSON items)
+              ]
+
+   showJSON (DocumentTable style mCL items) = 
+      makeObj [  ("type", showJSON "DocumentTable")
+               , ("content", showJSON items)
+               , ("caption", showJSON' $ fst <$> mCL)
+               , ("label", showJSON' $ snd <$> mCL)
+               , ("style", showJSON style)
+              ]
+
+   showJSON (DocumentTableRow items) = 
+      makeObj [  ("type", showJSON "DocumentTableRow")
+               , ("content", showJSON items)
+              ]
+
+   showJSON (DocumentMetaContainer properties items) = 
+      makeObj [  ("type", showJSON "DocumentMetaContainer")
+               , ("properties", showJSON $ toJSObject properties)
+               , ("content", showJSON items)
+              ]
+
+   readJSON (JSObject obj) = let
+     jsonObjAssoc = fromJSObject obj
+     getOne  x    = (mLookup x jsonObjAssoc) >>= readJSON
+    in do
+      objType <- getOne "type"
+      case objType of
+         "DocumentHeading"        -> DocumentHeading   <$> (getOne objType) <*> 
+                                                           getOne "content"
+         "DocumentBoldFace"       -> DocumentBoldFace  <$> getOne "content"
+         "DocumentParagraph"      -> DocumentParagraph <$> getOne "content"
+         "DocumentOList"          -> DocumentOList     <$> getOne "content"
+         "DocumentUList"          -> DocumentUList     <$> getOne "content"
+         "DocumentTable"          -> do thing   <- getOne "content"
+                                        caption <- getOne "caption"
+                                        label   <- getOne "label"
+                                        style   <- getOne "style"
+                                        return $ DocumentTable 
+                                                   style 
+                                                   (((,)) <$> caption <*> label) 
+                                                   thing
+         "DocumentTableRow"       -> DocumentTableRow  <$> getOne "content"
+         "DocumentMetaContainer"  -> DocumentMetaContainer <$> 
+                                             (fromJSObject <$> 
+                                                 getOne "properties") <*> 
+                                             getOne "content"
+         _                        -> fail $ "Unknown object type: " ++ 
+                                                show objType
+   readJSON x = fail $ "Cannot decode JSON item: " ++ show x
+
+
+{-| A DocumentItem can be anything that is part of a document. This includes
+    simple entities such as words or images, but also containers such as tables
+    or paragraphs. -}
+data DocumentItem =   ItemWord String
+                    | ItemDocumentContainer DocumentContainer
+                    | ItemImage DocumentImage
+                    | ItemLinebreak
+                    | ItemMetaTag [(String, String)]
+                    deriving(Show)
+
+instance JSON DocumentItem where
+   showJSON (ItemWord x) = 
+       makeObj [ ("type", showJSON "ItemWord"), ("ItemWord", showJSON x) ]
+
+   showJSON (ItemDocumentContainer c) = 
+       makeObj [  ("type", showJSON "ItemDocumentContainer")
+                , ("ItemDocumentContainer", showJSON c) 
+               ]
+
+   showJSON (ItemMetaTag t) = 
+      makeObj [  ("type", showJSON "ItemMetaTag") 
+               , ("ItemMetaTag", showJSON $ toJSObject t) 
+              ]
+
+   showJSON (ItemLinebreak) = makeObj [ ("type", showJSON "ItemLinebreak") ]
+
+   showJSON (ItemImage i) = 
+      makeObj [  ("type", showJSON "ItemImage")
+               , ("ItemImage", showJSON $ i) 
+              ]
+
+   readJSON (JSObject obj) = let
+     jsonObjAssoc = fromJSObject obj
+     getOne  x = (mLookup x jsonObjAssoc) >>= readJSON
+    in do
+      objType <- getOne "type"
+      case objType of
+         "ItemWord"               -> ItemWord <$> getOne objType
+         "ItemDocumentContainer"  -> ItemDocumentContainer <$> getOne objType
+         "ItemMetaTag"            -> ItemMetaTag <$> (fromJSObject <$> 
+                                                      getOne objType)
+         "ItemLinebreak"          -> return ItemLinebreak
+         "ItemImage"              -> ItemImage <$> getOne objType
+         _                        -> fail $ "Unknown object type: " ++ 
+                                            show objType
+   readJSON x = fail $ "Cannot decode JSON item: " ++ show x
+
+{-| An item in an ordered list -}
+data OListItem = OListItem {   oListItemIndent  :: Int -- ^ The indentation level
+                             , oListItemNumber  :: String -- ^ The number of the
+                                                          -- item. This is
+                                                          -- something like
+                                                          -- 1.2.3.
                            } deriving(Show)
 
--- XXX The list items are kinda quirky. I don't think we actually
--- need the "indent". Not even sure we need the "number" member.
--- Maybe one should re-factor that.
 instance JSON OListItem where
-   showJSON oli = makeObj [ ("indent", showJSON $ oListItemIndent oli),
-                            ("number", showJSON $ oListItemNumber oli)
+   showJSON oli = makeObj [   ("indent", showJSON $ oListItemIndent oli)
+                            , ("number", showJSON $ oListItemNumber oli)
                           ]
 
    readJSON (JSObject obj) = let
@@ -44,12 +184,12 @@ instance JSON OListItem where
       number <- mLookup "number" jsonObjAssoc >>= readJSON
       return $ OListItem indent number
 
-data UListItem = UListItem { uListItemIndent  :: Int
+{-| An item in an un-ordered (bullet point) list -}
+data UListItem = UListItem { uListItemIndent  :: Int -- ^ The item's indent
                            } deriving(Show)
 
 instance JSON UListItem where
-   showJSON uli = makeObj [ ("indent", showJSON $ uListItemIndent uli)
-                          ]
+   showJSON uli = makeObj [ ("indent", showJSON $ uListItemIndent uli) ]
 
    readJSON (JSObject obj) = let
       jsonObjAssoc = fromJSObject obj
@@ -57,13 +197,19 @@ instance JSON UListItem where
       indent <- mLookup "indent" jsonObjAssoc >>= readJSON
       return $ UListItem indent 
 
-data Heading = Heading { headingLevel :: Int,
-                         headingComputedNumber :: Maybe [Int]
+{-| A heading -}
+data Heading = Heading {   headingLevel :: Int -- ^ The heading level
+                         , headingComputedNumber :: Maybe [Int]
+                           -- ^ A heading can have a computed heading number,
+                           -- such as 1.2.3. This is useful for generating
+                           -- a table of contents or for referencing sections
+                           -- in a document.
                        } deriving(Show)
 
 instance JSON Heading where
-   showJSON hd  = makeObj [ ("level", showJSON $ headingLevel hd),
-                            ("computedNumber", showJSON $ headingComputedNumber hd)
+   showJSON hd  = makeObj [  ("level", showJSON $ headingLevel hd)
+                           , ("computedNumber", showJSON $ 
+                                                  headingComputedNumber hd)
                           ]
 
    readJSON (JSObject obj) = let
@@ -74,17 +220,19 @@ instance JSON Heading where
       return $ Heading level cn
    readJSON x = fail $ "Cannot decode JSON item: " ++ show x
 
+{-| An image in a document -}
 data DocumentImage = Image {
-                        imageFilename :: String,
-                        imageCaption  :: String,
-                        imageLabel    :: String
+                        imageFilename :: String -- ^ The file name of the image
+                      , imageCaption  :: String -- ^ The image's caption
+                      , imageLabel    :: String -- ^ A label for referencing the
+                                                -- image
                      } deriving(Show)
 
 instance JSON DocumentImage where
    showJSON (Image filename caption label) =
-      makeObj [("imageFilename", showJSON filename),
-               ("imageCaption" , showJSON caption),
-               ("imageLabel"   , showJSON label)
+      makeObj [  ("imageFilename", showJSON filename)
+               , ("imageCaption" , showJSON caption)
+               , ("imageLabel"   , showJSON label)
               ]
 
    readJSON (JSObject obj) = let
@@ -94,106 +242,6 @@ instance JSON DocumentImage where
       caption  <- mLookup "imageCaption"  jsonObjAssoc >>= readJSON
       label    <- mLookup "imageLabel"    jsonObjAssoc >>= readJSON
       return $ Image filename caption label
-
-data DocumentContainer =   DocumentHeading   Heading [DocumentItem]
-                         | DocumentBoldFace  [DocumentItem]
-                         | DocumentParagraph [DocumentItem]
-                         | DocumentOList     [(OListItem, [DocumentItem])]
-                         | DocumentUList     [(UListItem, [DocumentItem])]
-                         | DocumentTableRow  [[DocumentItem]]
-                         | DocumentTable     String (Maybe (String, String)) [DocumentContainer]
-                         | DocumentMetaContainer [(String,String)] [DocumentItem]
-                         deriving(Show)
-
-showJSON' (Just x) = showJSON x
-showJSON' Nothing = JSNull
-
-instance JSON DocumentContainer where
-   showJSON (DocumentHeading heading items) = makeObj [ ("type", showJSON "DocumentHeading"),
-                                                        ("DocumentHeading", showJSON heading),
-                                                        ("content", showJSON items)
-                                                      ]
-   showJSON (DocumentBoldFace items) = makeObj [ ("type", showJSON "DocumentBoldFace"),
-                                                 ("content", showJSON items)
-                                               ]
-   showJSON (DocumentParagraph items) = makeObj [ ("type", showJSON "DocumentParagraph"),
-                                                  ("content", showJSON items)
-                                                ]
-   showJSON (DocumentOList items) = makeObj [ ("type", showJSON "DocumentOList"),
-                                              ("content", showJSON items)
-                                            ]
-   showJSON (DocumentUList items) = makeObj [ ("type", showJSON "DocumentUList"),
-                                              ("content", showJSON items)
-                                            ]
-
-   showJSON (DocumentTable style mCL items) = makeObj [ ("type", showJSON "DocumentTable"),
-                                                        ("content", showJSON items),
-                                                        ("caption", showJSON' $ fst <$> mCL),
-                                                        ("label", showJSON' $ snd <$> mCL),
-                                                        ("style", showJSON style)
-                                                      ]
-
-   showJSON (DocumentTableRow items) = makeObj [ ("type", showJSON "DocumentTableRow"),
-                                              ("content", showJSON items)
-                                               ]
-
-
-   showJSON (DocumentMetaContainer properties items) = makeObj [ ("type", showJSON "DocumentMetaContainer"),
-                                                                 ("properties", showJSON $ toJSObject properties),
-                                                                 ("content", showJSON items)
-                                                               ]
-
-   readJSON (JSObject obj) = let
-     jsonObjAssoc = fromJSObject obj
-     getOne  x = (mLookup x jsonObjAssoc) >>= readJSON
-    in do
-      objType <- getOne "type"
-      case objType of
-         "DocumentHeading"   -> do hd <- getOne objType ; it <- getOne "content" ; return $ DocumentHeading hd it
-         "DocumentBoldFace"  -> do thing <- getOne "content" ; return $ DocumentBoldFace thing
-         "DocumentParagraph" -> do thing <- getOne "content" ; return $ DocumentParagraph thing
-         "DocumentOList"     -> do thing <- getOne "content" ; return $ DocumentOList thing
-         "DocumentUList"     -> do thing <- getOne "content" ; return $ DocumentUList thing
-         "DocumentTable"     -> do thing <- getOne "content"
-                                   caption <- getOne "caption"
-                                   label   <- getOne "label"
-                                   style   <- getOne "style"
-                                   return $ DocumentTable style (((,)) <$> caption <*> label) thing
-         "DocumentTableRow"  -> do thing <- getOne "content" ; return $ DocumentTableRow thing
-         "DocumentMetaContainer"  -> do thing <- getOne "content" 
-                                        prop  <- getOne "properties"
-                                        return $ DocumentMetaContainer (fromJSObject prop) thing
-         _                   -> fail $ "Unknown object type: " ++ show objType
-   readJSON x = fail $ "Cannot decode JSON item: " ++ show x
-
-
-data DocumentItem =   ItemWord String
-                    | ItemDocumentContainer DocumentContainer
-                    | ItemImage DocumentImage
-                    | ItemLinebreak
-                    | ItemMetaTag [(String, String)]
-                    deriving(Show)
-
-instance JSON DocumentItem where
-   showJSON (ItemWord x) = makeObj [ ("type", showJSON "ItemWord"), ("ItemWord", showJSON x) ]
-   showJSON (ItemDocumentContainer c) = makeObj [ ("type", showJSON "ItemDocumentContainer"), ("ItemDocumentContainer", showJSON c) ]
-   showJSON (ItemMetaTag t) = makeObj [ ("type", showJSON "ItemMetaTag"), ("ItemMetaTag", showJSON $ toJSObject t) ]
-   showJSON (ItemLinebreak) = makeObj [ ("type", showJSON "ItemLinebreak") ]
-   showJSON (ItemImage i) = makeObj [ ("type", showJSON "ItemImage"), ("ItemImage", showJSON $ i) ]
-
-   readJSON (JSObject obj) = let
-     jsonObjAssoc = fromJSObject obj
-     getOne  x = (mLookup x jsonObjAssoc) >>= readJSON
-    in do
-      objType <- getOne "type"
-      case objType of
-         "ItemWord"               -> do thing <- getOne objType ; return $ ItemWord thing
-         "ItemDocumentContainer"  -> do thing <- getOne objType ; return $ ItemDocumentContainer thing
-         "ItemMetaTag"            -> do thing <- getOne objType ; return $ ItemMetaTag (fromJSObject thing)
-         "ItemLinebreak"          -> do return $ ItemLinebreak
-         "ItemImage"              -> do thing <- getOne objType ; return $ ItemImage thing
-         _                        -> fail $ "Unknown object type: " ++ show objType
-   readJSON x = fail $ "Cannot decode JSON item: " ++ show x
 
 ------------------------ Compute the heading level --------------------
 
@@ -230,6 +278,9 @@ computeHeadingNumbers' ( (ItemDocumentContainer (DocumentHeading (Heading level 
 computeHeadingNumbers' (x:rest) = do   rest' <- computeHeadingNumbers' rest
                                        return $ x:rest'
 
+{-| Computes the heading numbers and returns a new document where all heading
+    have a headingComputedNumber. -}
+computeHeadingNumbers :: [DocumentItem] -> [DocumentItem]
 computeHeadingNumbers x = evalState (computeHeadingNumbers' x) [[-1]]
 
 ------------------------- Generating a TOC ----------------------------
@@ -256,6 +307,9 @@ headingToToc (ItemDocumentContainer (DocumentHeading (Heading _ cn) headline)) =
 
 headingToToc _ = Nothing
 
+{-| Generates a table of contents for a document. It returns the table of
+    contents as a DocumentOList. -}
+generateToc :: [DocumentItem] -> DocumentItem
 generateToc document = ItemDocumentContainer $
                          DocumentOList $ map fromJust (filter isJust (map headingToToc document))
 
@@ -290,9 +344,12 @@ filterContainer func (DocumentTable _ _ content) =
 filterContainer func (DocumentMetaContainer _ content) =
    filterItems func content
 
--- filterItems will recursively walk through the *whole*
--- document depth-first, returning a list of elements where
--- func(element) == True
+{-| FilterItems will recursively walk through the whole
+ - document depth-first, returning a list of elements where
+ - func(element) == True -}
+filterItems ::   (DocumentItem -> Bool) -- ^ The filter function
+              -> [DocumentItem] -- ^ The document
+              -> [DocumentItem] -- ^ The resulting document
 filterItems _ [] = []
 filterItems func (item:items) =
    case item of
