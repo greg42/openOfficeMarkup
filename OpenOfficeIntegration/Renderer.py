@@ -639,9 +639,10 @@ class Renderer(object):
       self.CurrentHeading = (headingLevel, headingText, headingNumber)
 
    def insertBoldFace(self, text):
+      cw = self._cursor.CharWeight
       self._cursor.CharWeight = BOLD
       self.render(text)
-      self._cursor.setPropertyToDefault("CharWeight")
+      self._cursor.CharWeight = cw
 
    def insertSourceCode(self, text):
       self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
