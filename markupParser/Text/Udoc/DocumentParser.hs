@@ -136,6 +136,10 @@ optRename optKeyName aList =
    in
    catMaybes $ map getJust (zip (map (Just . snd) optKeyName) values)
 
+-- | A combination of mandRename and optRename. This function tries to extract
+-- all required and optional arguments from a list. The obtained arguments will
+-- be renamed and then a function will be invoked on both resulting argument
+-- lists. The result of the function will be returned.
 getArgumentsOrFail ::    (Monad m, Eq a, Show a) => 
                          [(a, b)] -- ^ A renaming pair for the mandatory args
                       -> [(a, b)] -- ^ A renaming pair for the optional args
@@ -195,6 +199,12 @@ handleImgRef = handleMetaTag "imgref" [("label", "label")] []
 handleTblRef :: [(String, String)] -> IParse DocumentItem
 handleTblRef = handleMetaTag "tblref" [("label", "label")] []
 
+-- | Creates an ItemDocumentMetaContainer from the container type, its
+-- properties and its content.
+createMetaContainer ::    String -- ^ The container type
+                       -> [(String, String)] -- ^ The container properties
+                       -> [DocumentItem] -- ^ The container content
+                       -> DocumentItem -- ^ The resulting item
 createMetaContainer t props content = 
    ItemDocumentContainer $ DocumentMetaContainer ([("type", t)] ++ props) content
 
@@ -294,7 +304,7 @@ paragraphWithout x hsp = do
                          <|> (do x <- try $ oList hsp; return [x])
                        )
                     )
-   skipMany $ try emptyline
+   skipEmptyLines
    return $ ItemDocumentContainer $ DocumentParagraph $ concat lines
 
 -- | Parses escaped character sequences (such as \[) and returns the according
@@ -430,8 +440,15 @@ containerContentsUntil x hsp = do
    contents <- manyTill (containerContentWithout x hsp) (x)
    return $ removeLastPara contents
 
+-- | The contents of a container; may not contain anything matched by some
+-- parser x.
+containerContentWithout ::   IParse () -- ^ Forbidden content
+                          -> HSP  -- ^ Supported special commands
+                          -> IParse DocumentItem
 containerContentWithout x hsp = notFollowedBy x >> paragraphWithout x hsp
 
+-- | The contents of a container
+containerContentBlock :: HSP -> IParse [DocumentItem]
 containerContentBlock hsp = do
    x <- many1 $ do
       l <- containerContentOneLine hsp
@@ -442,38 +459,37 @@ containerContentBlock hsp = do
    spaces
    return x
 
--- A plain list (much like LaTeX itemize)
--- The syntax is simple:
--- * foo
--- * bar
---   * bla
--- * foo
+-- | The begin of an item in an un-ordered list. Returns the indentation level.
+uListItemBegin :: IParse Int
 uListItemBegin = do
       i <- many $ char ' '
       char '*'
       j <- many $ char ' '
       return $ ((length (i++j)) + 1)
 
+-- | The body of an item in an un-ordered list
+uListItemBody :: HSP -> Int -> IParse (UListItem, [DocumentItem])
 uListItemBody hsp ind = do
       content <- block (containerContentBlock hsp)
       return $ (UListItem ind, (concat content))
 
+-- | One item in an un-ordered list
+uListItem :: HSP -> IParse (UListItem, [DocumentItem])
 uListItem hsp =
    do ind <- uListItemBegin
       uListItemBody hsp ind
 
+-- | Am un-ordered (bullet point) list
+uList :: HSP -> IParse DocumentItem
 uList hsp = do
    checkIndent
    lookAhead (uListItemBegin)
    result <- block $ uListItem hsp
    return $ ItemDocumentContainer (DocumentUList result)
 
--- A numbered list (much like LaTeX enumerate)
--- The syntax is:
--- 1. A
--- 1.1. B
--- 1.2) C
--- 2.) D
+-- | The begin of an item in an ordered list. Returns the indentation level
+-- and the item's number.
+oListItemBegin :: IParse (Int, String)
 oListItemBegin = do
    i <- many $ char ' '
    number <- dottedNumber
@@ -481,18 +497,23 @@ oListItemBegin = do
    spaces
    return ((length i), number)
 
+-- | One item in an ordered list
+oListItem :: HSP -> IParse (OListItem, [DocumentItem])
 oListItem hsp =
    do (ind, num) <- oListItemBegin
       content <- block $ (containerContentBlock hsp)
       return $ (OListItem ind num, (concat content))
 
+-- | An ordered list. 
+oList :: HSP -> IParse DocumentItem
 oList hsp =
    do checkIndent
       lookAhead oListItemBegin
       items <- block $ oListItem hsp
       return $ ItemDocumentContainer (DocumentOList items)
 
--- A number like 1, 1.2 or 1.2.3.4
+-- | A number like 1, 1.2 or 1.2.3.4
+dottedNumber :: IParse String
 dottedNumber = do num <- many1 digit
                   rest <- try (char '.' >> dottedNumber) <|> return ""
                   if length rest == 0 then
@@ -500,15 +521,22 @@ dottedNumber = do num <- many1 digit
                    else
                       return (num ++ "." ++ rest)
 
-listItemBegin = ((try uListItemBegin) >> return ()) <|> (oListItemBegin >> return ())
+-- | The begin of a list item: either the begin of an UListItem or the
+-- begin of an OListItem.
+listItemBegin :: IParse ()
+listItemBegin = 
+   ((try uListItemBegin) >> return ()) <|> (oListItemBegin >> return ())
+
+-- | The begin of a heading: a number of # characters. Returns the heading
+-- level.
+headingBegin :: IParse Int
 headingBegin = do
    spaces
    level <- (many1 $ char '#')
    spaces
    return $ length level
 
--- A heading. Currently, we do not do our indentation check and allow only
--- headings with one line.
+-- | A heading
 heading :: HSP -> IParse DocumentItem
 heading hsp = do level <- headingBegin
                  items <- block $ do
