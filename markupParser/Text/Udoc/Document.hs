@@ -90,6 +90,10 @@ instance JSON DocumentContainer where
    readJSON (JSObject obj) = let
      jsonObjAssoc = fromJSObject obj
      getOne  x    = (mLookup x jsonObjAssoc) >>= readJSON
+     getOne' x    = case (lookup x jsonObjAssoc) of
+                      Just (JSNull) -> return Nothing
+                      Just (x)      -> Just <$> readJSON x
+                      Nothing       -> return Nothing
     in do
       objType <- getOne "type"
       case objType of
@@ -100,8 +104,8 @@ instance JSON DocumentContainer where
          "DocumentOList"          -> DocumentOList     <$> getOne "content"
          "DocumentUList"          -> DocumentUList     <$> getOne "content"
          "DocumentTable"          -> do thing   <- getOne "content"
-                                        caption <- getOne "caption"
-                                        label   <- getOne "label"
+                                        caption <- getOne' "caption"
+                                        label   <- getOne' "label"
                                         style   <- getOne "style"
                                         return $ DocumentTable 
                                                    style 
