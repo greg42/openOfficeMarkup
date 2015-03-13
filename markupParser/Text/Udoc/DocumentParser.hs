@@ -334,7 +334,7 @@ word = do result <- many1 wordChar
 -- character.
 cellContent :: HSP -> IParse [DocumentItem]
 cellContent hsp = do
-   x <- many $ containerContentOneLine hsp
+   x <- concat <$> (many $ containerContentOneLine hsp)
    return $ x
 
 -- | A row of a table
@@ -405,12 +405,12 @@ skipEmptyLines = skipMany (try emptyline)
 
 -- | This basically matches anything but paragraphs and headings
 -- It will parse one item, but it will fail on newline
-containerContentOneLine :: HSP -> IParse DocumentItem
+containerContentOneLine :: HSP -> IParse [DocumentItem]
 containerContentOneLine hsp =
-          (try $ extendedCommand hsp)
-      <|> (try $ uList hsp)
-      <|> (try $ oList hsp)
-      <|> (beginRegularLine >> word)
+          (try $ (:[]) <$> extendedCommand hsp)
+      <|> (try $ (:[]) <$> uList hsp)
+      <|> (try $ (:[]) <$> oList hsp)
+      <|> (beginRegularLine >> many1 word)
 
 -- | If the last item in l is a Paragraph, then remove this paragraph
 -- and replace it by its plain contents.
@@ -457,7 +457,7 @@ containerContentBlock hsp = do
    spaces
    optional newline
    spaces
-   return x
+   return $ concat x
 
 -- | The begin of an item in an un-ordered list. Returns the indentation level.
 uListItemBegin :: IParse Int
