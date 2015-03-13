@@ -7,6 +7,16 @@
  - ----------------------------------------------------------------------------
  -}
 
+{-|
+Module      : Text.Udoc.DocumentParser
+Description : Udoc document parser
+Copyright   : (c) Gregor Kopf, 2012
+License     : BEER-WARE LICENSE (Revision 42)
+Maintainer  : code@gregorkopf.de
+Stability   : experimental
+
+This module contains the implementation of the udoc parser.
+-}
 module Text.Udoc.DocumentParser where
 
 import Text.ParserCombinators.Parsec hiding (State, try, spaces)
@@ -404,7 +414,8 @@ skipEmptyLines :: IParse ()
 skipEmptyLines = skipMany (try emptyline)
 
 -- | This basically matches anything but paragraphs and headings
--- It will parse one item, but it will fail on newline
+-- It will parse multiple words or one other item, but it will 
+-- fail on newline.
 containerContentOneLine :: HSP -> IParse [DocumentItem]
 containerContentOneLine hsp =
           (try $ (:[]) <$> extendedCommand hsp)

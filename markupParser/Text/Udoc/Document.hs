@@ -8,6 +8,16 @@
  - ----------------------------------------------------------------------------
  -}
 
+{-|
+Module      : Text.Udoc.Document
+Description : Udoc document structure
+Copyright   : (c) Gregor Kopf, 2012
+License     : BEER-WARE LICENSE (Revision 42)
+Maintainer  : code@gregorkopf.de
+Stability   : experimental
+
+This module contains all the udoc-related data types.
+-}
 module Text.Udoc.Document 
    (DocumentItem(..), OListItem(..), UListItem(..), Heading(..),
     DocumentContainer(..), DocumentImage(..),
