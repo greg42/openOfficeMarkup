@@ -51,6 +51,7 @@ class Renderer(object):
       self._hookRender = None
       self.languageStrings = {}
       self._lastItem = None
+      self._currentLanguage = None
 
    def init(self, document, cursor):
       self._cursor = cursor
@@ -69,6 +70,8 @@ class Renderer(object):
          del self.i18n[key]
       for key in myi18n:
          self.i18n[key] = myi18n[key]
+
+      self._currentLanguage = lang
 
       if lang in self.languageStrings:
          language, country = self.languageStrings[lang]
@@ -109,6 +112,8 @@ class Renderer(object):
          self.insertSourceCode(content)
       if properties['type'] == 'inlineSource':
          self.insertInlineSourceCode(content)
+      if properties['type'] == 'inlineQuote':
+         self.insertInlineQuote(content)
       elif self.handleCustomMetaContainer(properties, content):
          return
       else:
@@ -652,6 +657,21 @@ class Renderer(object):
    
       self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
       self.changeParaStyle(oldStyle)
+
+   def insertInlineQuote(self, text):
+      if self.needSpace():
+         self.insertString(" ")
+
+      if self._currentLanguage == 'de':
+         self.insertString('„')
+      else: 
+         self.insertString('"')
+      self.render(text)
+      self.smartSpace()
+      if self._currentLanguage == 'de':
+         self.insertString('“')
+      else:
+         self.insertString('"')
 
    def insertInlineSourceCode(self, text):
       old = self.changeCharStyle(self.STYLE_INLINE_SOURCE_CODE)

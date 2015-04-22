@@ -110,6 +110,11 @@ inlineSource :: IParse Command
 inlineSource = do (char '{' >> return ())
                   return ("_s", [])
 
+-- | Some text surrounded by double quotes. This will internally be
+-- represented as a command called "_q" (for quote)
+inlineQuote :: IParse Command
+inlineQuote = char '"' >> return ("_q", [])
+
 -- | Looks up a list of keys from an association list. If all keys are found,
 -- returns Just [values]. Otherwise, returns nothing.
 getMandatory ::   (Eq a) => 
@@ -221,7 +226,7 @@ createMetaContainer t props content =
 -- | A command is either inlineSource or a regular command surrounded
 -- by square brackets.
 extendedCommand' :: IParse Command
-extendedCommand' = inlineSource <|> squareBrCommand
+extendedCommand' = inlineSource <|> inlineQuote <|> squareBrCommand
 
 -- | This parses a command and handles it accordingly.
 extendedCommand :: HSP -> IParse DocumentItem
@@ -283,6 +288,8 @@ handleExtendedCommand name args handleSpecialCommand =
                      return $ ItemDocumentContainer $ DocumentTable style mCL rows
       "_s"     -> do source <- manyTill inlineVerbatimContent (char '}' >> spaces)
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineSource")]) source
+      "_q"     -> do text <- manyTill inlineQuotedContent (char '"' >> spaces)
+                     return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineQuote")]) text
       "source" -> do skipEmptyLines
                      source <- manyTill (verbatimContent "[/source]") (extendedCommandName "/source")
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "source")]) (removeTrailingNewline source)
@@ -389,6 +396,13 @@ verbatimText closingTag = do
 inlineVerbatimContent :: IParse DocumentItem
 inlineVerbatimContent = do 
    result <- many1 (wordChar <|> oneOf "\n\t |\"[]")
+   return $ ItemWord result
+
+-- | Contents of the inline quoted text container - may basically be everything
+-- besides ", which needs to be escaped.
+inlineQuotedContent :: IParse DocumentItem
+inlineQuotedContent = do 
+   result <- many1 wordChar
    return $ ItemWord result
 
 -- | The start of the regular line of text. This is only a lookahead, which
