@@ -402,7 +402,7 @@ inlineVerbatimContent = do
 -- besides ", which needs to be escaped.
 inlineQuotedContent :: IParse DocumentItem
 inlineQuotedContent = do 
-   result <- many1 wordChar
+   result <- many1 (wordChar <|> oneOf " \t")
    return $ ItemWord result
 
 -- | The start of the regular line of text. This is only a lookahead, which
