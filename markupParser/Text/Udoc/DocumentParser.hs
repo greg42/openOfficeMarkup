@@ -17,6 +17,9 @@ Stability   : experimental
 
 This module contains the implementation of the udoc parser.
 -}
+
+{-# LANGUAGE FlexibleContexts #-}
+
 module Text.Udoc.DocumentParser where
 
 import Text.ParserCombinators.Parsec hiding (State, try, spaces)
@@ -49,7 +52,8 @@ type Command = (String, [(String, String)])
 -- | Parse a udoc document and return the document items.
 parseDocument :: HSP -> String -> [DocumentItem]
 parseDocument hsp input = 
-   forceEither $ myParse id (documentItems hsp) input
+   let result = myParse id (documentItems hsp) input :: Either ParseError [DocumentItem]
+   in forceEither result
    where myParse f p src = fst $ flip runState (f $ initialPos "") $ 
                                       runParserT p () "" src
 
