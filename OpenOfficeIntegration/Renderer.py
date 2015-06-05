@@ -680,7 +680,7 @@ class Renderer(object):
       self.render(text)
       self.smartSpace()
       # Thanks, joern.
-      #self._cursor.CharStyleName = "Default Style"
+      self._cursor.CharStyleName = "Default Style"
       self._cursor.setPropertyToDefault("CharStyleName")
       #self.changeCharStyle(old)
 
