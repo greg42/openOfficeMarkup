@@ -674,9 +674,9 @@ class Renderer(object):
          self.insertString('"')
 
    def insertInlineSourceCode(self, text):
-      old = self.changeCharStyle(self.STYLE_INLINE_SOURCE_CODE)
       if self.needSpace():
          self.insertString(' ')
+      old = self.changeCharStyle(self.STYLE_INLINE_SOURCE_CODE)
       self.render(text)
       self.smartSpace()
       # Thanks, joern.
