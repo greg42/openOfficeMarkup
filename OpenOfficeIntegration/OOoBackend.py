@@ -96,6 +96,8 @@ class OpenOfficeBackend(object):
          args = ()
       elif outFile.upper().endswith('.OTS'):
          args = ()
+      elif outFile.upper().endswith('.DOCX'):
+         args = ()
       else:
          raise RuntimeError('Unknown output file format.')
       self._doc.storeToURL(self._convertToURL(os.path.realpath(outFile)), args)
