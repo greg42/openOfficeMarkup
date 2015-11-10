@@ -13,6 +13,7 @@ import uno
 import json
 import platform
 import time
+from com.sun.star.style.BreakType import PAGE_AFTER,PAGE_BEFORE
 from com.sun.star.text.ControlCharacter import PARAGRAPH_BREAK
 from com.sun.star.text.TextContentAnchorType import AS_CHARACTER
 from com.sun.star.awt import Size
@@ -574,7 +575,8 @@ class Renderer(object):
       self.doAfterRendering(updateToc)
 
    def insertPageBreak(self):
-      self._cursor.PageDescName = self._cursor.PageStyleName
+      self._cursor.gotoEnd(False)      
+      self._cursor.BreakType = PAGE_BEFORE
 
    def insertTable(self, tableContent, caption, labelName, style):
       numRows = len(tableContent)
@@ -674,9 +676,9 @@ class Renderer(object):
          self.insertString('"')
 
    def insertInlineSourceCode(self, text):
+      old = self.changeCharStyle(self.STYLE_INLINE_SOURCE_CODE)
       if self.needSpace():
          self.insertString(' ')
-      old = self.changeCharStyle(self.STYLE_INLINE_SOURCE_CODE)
       self.render(text)
       self.smartSpace()
       # Thanks, joern.
