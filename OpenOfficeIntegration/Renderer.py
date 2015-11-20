@@ -568,6 +568,7 @@ class Renderer(object):
 
    def insertTableOfContents(self):
       index = self._realDocument.createInstance("com.sun.star.text.ContentIndex")
+      index.Title = self.i18n['toc']
       index.CreateFromOutline = True
       self._document.Text.insertTextContent(self._cursor, index, False)
       def updateToc(self):
@@ -711,6 +712,7 @@ class VanillaRenderer(Renderer):
       self.custom_i18n['en'] = {
          'figure': 'Figure',
          'table' : 'Table',
+         'toc'   : 'Table of Contents',
       }
       self.languageStrings['en'] = ("en", "US")
 
