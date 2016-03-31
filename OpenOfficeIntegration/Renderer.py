@@ -53,6 +53,7 @@ class Renderer(object):
       self.languageStrings = {}
       self._lastItem = None
       self._currentLanguage = None
+      self._inSource = False
 
    def init(self, document, cursor):
       self._cursor = cursor
@@ -95,10 +96,11 @@ class Renderer(object):
       self.insertHeading(level, items)
 
    def renderBoldFace(self, items):
-      if self.needSpace():
+      if self.needSpace() and not self._inSource:
          self.insertString(' ')
       self.insertBoldFace(items)
-      self.smartSpace()
+      if not self._inSource:
+          self.smartSpace()
 
    def renderParagraph(self, items):
       self.insertParagraph(items)
@@ -656,10 +658,12 @@ class Renderer(object):
       self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
       oldStyle = self.changeParaStyle(self.STYLE_SOURCE_CODE)
    
+      self._inSource = True
       self.render(text)
    
       self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
       self.changeParaStyle(oldStyle)
+      self._inSource = False
 
    def insertInlineQuote(self, text):
       if self.needSpace():
@@ -677,9 +681,9 @@ class Renderer(object):
          self.insertString('"')
 
    def insertInlineSourceCode(self, text):
-      old = self.changeCharStyle(self.STYLE_INLINE_SOURCE_CODE)
       if self.needSpace():
          self.insertString(' ')
+      old = self.changeCharStyle(self.STYLE_INLINE_SOURCE_CODE)
       self.render(text)
       self.smartSpace()
       # Thanks, joern.
