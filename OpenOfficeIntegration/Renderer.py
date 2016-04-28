@@ -128,9 +128,13 @@ class Renderer(object):
       self.insertTable(normTable, caption, label, style)
 
    def renderUListItem(self, uli, content):
+      # Do not put a space in front of a source code or bold list entry
+      self._lastItem = None
       self.insertUListItem(content)
 
    def renderOListItem(self, oli, content, nl = None):
+      # Do not put a space in front of a source code or bold list entry
+      self._lastItem = None
       self.insertOListItem(content, nl)
 
    def renderUlist(self, ulist):
