@@ -433,9 +433,10 @@ class Renderer(object):
       return graph
 
    def insertInlineImage(self, path, vOffset):
-      self.insertString(' ')
+      if self.needSpace():
+         self.insertString(' ')
       self._insertImage(path, inline = True, scale = 0.15, vOffset = vOffset)
-      self.insertString(' ')
+      self.smartSpace()
 
    def insertImage(self, path, caption, labelName):
       CAPTION_TITLE=self.i18n['figure']
