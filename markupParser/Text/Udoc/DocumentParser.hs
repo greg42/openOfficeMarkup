@@ -3,7 +3,7 @@
  - "THE BEER-WARE LICENSE" (Revision 42):
  - <code@gregorkopf.de> wrote this file. As long as you retain this notice you
  - can do whatever you want with this stuff. If we meet some day, and you
- - think this stuff is worth it, you can buy me a beer in return Gregor Kopf
+ - think this stuff is worth it, you can buy me a beer in return. Gregor Kopf
  - ----------------------------------------------------------------------------
  -}
 
@@ -287,8 +287,10 @@ handleExtendedCommand name args handleSpecialCommand =
       "table"  -> do let mCL = ((,)) <$> lookup "caption" args <*> lookup "label" args
                      let style = fromMaybe "head_top" $ lookup "style" args
                      skipEmptyLines
-                     rows <- manyTill (do r <- tableRow handleSpecialCommand; skipMany1 $ char '\n'; return r) 
-                                      (extendedCommandName "/table")
+                     t <- table
+                     -- We simply apply our document parser to each table
+                     -- cell.
+                     let rows = map (DocumentTableRow . (map $ parseDocument handleSpecialCommand)) t
                      return $ ItemDocumentContainer $ DocumentTable style mCL rows
       "_s"     -> do source <- manyTill inlineVerbatimContent (char '}' >> spaces)
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineSource")]) source
@@ -306,6 +308,48 @@ handleExtendedCommand name args handleSpecialCommand =
       -- command
       _         -> handleSpecialCommand name args
 
+-- | Parses one line from a table. Be aware, it really parses one line, not
+-- one row.
+oneTableLine :: IParse [String]
+oneTableLine = 
+   (many $ (notFollowedBy (extendedCommandName "/table") >> noneOf "|\n")) `sepBy` ((optional $ char ' ') >> (char '|') >> (optional $ char ' '))
+
+-- | Utility for stopping parsing when a table ends
+endOr :: a -> IParse a -> IParse a
+endOr val action = try $ ((extendedCommandName "/table") >> return val)
+                   <|> action
+
+-- | Actual table parsing function. Takes a flag that tells whether or not the
+-- table has to be parsed in "multi-line mode" (i.e., whether horizontal row
+-- delimiters are necessary or not) and a current table structure. Returns a
+-- new table structure.
+table' :: Bool -> [[String]] -> IParse [[String]]
+table' ml table = do
+   skipEmptyLines
+   endOr table $ do
+      l <- oneTableLine
+      let (newTable, newMl) = tableAppend ml l table
+      table' newMl newTable
+
+-- | Correctly appends a row to a table, depending on wheter the table is
+-- to be parsed in multi-line mode or not.
+tableAppend :: Bool -> [String] -> [[String]] -> ([[String]], Bool)
+tableAppend ml l table
+   | (not ml) && isDelimiter l && null table = (table, True)
+   | (not ml) && isDelimiter l = ([foldl (zipWith (\a b -> a ++ b ++ "\n")) emptyRow table] ++ [take (length $ table !! 0) emptyRow], True)
+   | ml && isDelimiter l = (table ++ [take (length $ table !! 0) emptyRow], True)
+   | not ml = (table ++ [l], False)
+   | ml && length table > 0 = ((init table) ++ [zipWith (\a b -> a ++ b ++ "\n") (last table) l], True)
+   | otherwise = (table, ml) -- Should not happen
+   where isDelimiter (l:[]) = all (=='-') l
+         isDelimiter _      = False
+         emptyRow = repeat ""
+
+-- | Convenience wrapper around our table parsing function
+table :: IParse [[String]]
+table = do 
+   t <- table' False []
+   return $ takeWhile (not . all (=="")) t
 
 -- | Simply parse a paragraph.
 paragraph :: HSP -> IParse DocumentItem
@@ -350,20 +394,6 @@ word :: IParse DocumentItem
 word = do result <- many1 wordChar
           spaces
           return $ ItemWord result
-
--- | The contents of a table row, i.e. some text separated by the pipe 
--- character.
-cellContent :: HSP -> IParse [DocumentItem]
-cellContent hsp = do
-   x <- concat <$> (many $ containerContentOneLine hsp)
-   return $ x
-
--- | A row of a table
-tableRow :: HSP -> IParse DocumentContainer
-tableRow hsp = do 
-   row <- (cellContent hsp) `sepBy` pipe
-   return $ DocumentTableRow (row)
-   where pipe = ((skipMany $ char ' ') >> char '|' >> (skipMany $ char ' '))
 
 -- | Contents of a source code section. Note that spaces, newlines and
 -- tabs will be left as they are. However, the bold tag is supported!
