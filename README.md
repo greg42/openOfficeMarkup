@@ -34,6 +34,21 @@ Besides these simple elements, the language supports some
 [b]extended[/b] commands. Section [ref label=commands] provides
 more details.
 
+Simple tables:
+[table]
+foo | bar
+bla | bla
+[/table]
+
+More complex tables:
+[table]
+foo  | bar
+--------------
+here | *comes
+     | * a
+     | *list
+[/table]
+
 # Commands
 [label name=commands]
 * [b]: Bold text
