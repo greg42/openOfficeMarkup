@@ -290,7 +290,7 @@ handleExtendedCommand name args handleSpecialCommand =
                      t <- table
                      -- We simply apply our document parser to each table
                      -- cell.
-                     let rows = map (DocumentTableRow . (map $ parseDocument handleSpecialCommand)) t
+                     let rows = map (DocumentTableRow . (map $ concat . (map stripOuterParagraph) . (parseDocument handleSpecialCommand))) t
                      return $ ItemDocumentContainer $ DocumentTable style mCL rows
       "_s"     -> do source <- manyTill inlineVerbatimContent (char '}' >> spaces)
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineSource")]) source
@@ -307,7 +307,9 @@ handleExtendedCommand name args handleSpecialCommand =
       -- identified command is some special-purpose
       -- command
       _         -> handleSpecialCommand name args
-
+   where stripOuterParagraph :: DocumentItem -> [DocumentItem]
+         stripOuterParagraph (ItemDocumentContainer (DocumentParagraph x)) = x
+         stripOuterParagraph x = [x]
 -- | Parses one line from a table. Be aware, it really parses one line, not
 -- one row.
 oneTableLine :: IParse [String]
