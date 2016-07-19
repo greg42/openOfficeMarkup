@@ -588,7 +588,11 @@ class Renderer(object):
 
    def insertTable(self, tableContent, caption, labelName, style):
       numRows = len(tableContent)
-      numCols = max(list(map(len, tableContent)))
+      tmpCols = list(map(len, tableContent))
+      # Empty tables are simply ignored
+      if len(tmpCols) == 0:
+        return
+      numCols = max(tmpCols)
    
       text = self._document.Text
       table = self._realDocument.createInstance("com.sun.star.text.TextTable")
