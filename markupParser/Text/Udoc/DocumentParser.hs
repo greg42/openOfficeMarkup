@@ -343,7 +343,7 @@ tableAppend ml l table
    | not ml = (table ++ [l], False)
    | ml && length table > 0 = ((init table) ++ [zipWith (\a b -> a ++ b ++ "\n") (last table) l], True)
    | otherwise = (table, ml) -- Should not happen
-   where isDelimiter (l:[]) = all (=='-') l
+   where isDelimiter (l:[]) = all ((||) <$> (=='-') <*> (=='+')) l
          isDelimiter _      = False
          emptyRow = repeat ""
 
