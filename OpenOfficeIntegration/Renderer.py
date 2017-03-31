@@ -316,13 +316,12 @@ class Renderer(object):
       return old
 
    def optimalTableWidth(self, table):
-      self._document.getCurrentController().select(table)
       vc = self._document.getCurrentController().getViewCursor()
-      vc.gotoEnd(True)
-      vc.gotoEnd(True)
-      provider = self._document.getCurrentController().Frame
-      dispatcher = self.createUnoService("com.sun.star.frame.DispatchHelper")
-      dispatcher.executeDispatch(provider, ".uno:SetOptimalColumnWidth", "", 0, ())
+      for c in range(len(table.getColumns())):
+          self._document.getCurrentController().select(table.getCellByPosition(c, 0))
+          provider = self._document.getCurrentController().Frame
+          dispatcher = self.createUnoService("com.sun.star.frame.DispatchHelper")
+          dispatcher.executeDispatch(provider, ".uno:SetOptimalColumnWidth", "", 0, ())
       vc.goDown(1, False)
 
       table.RelativeWidth = 100
