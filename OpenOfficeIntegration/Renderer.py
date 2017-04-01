@@ -328,7 +328,7 @@ class Renderer(object):
           vc.goDown(1, False)
       except Exception as e:
         print('Warning: Could not set optimal column width:')
-        print(e.message)
+        print(str(e))
       table.RelativeWidth = 100
 
    def guessImageSize(self, image):
