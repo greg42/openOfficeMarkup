@@ -317,13 +317,18 @@ class Renderer(object):
 
    def optimalTableWidth(self, table):
       vc = self._document.getCurrentController().getViewCursor()
-      for c in range(len(table.getColumns())):
-          self._document.getCurrentController().select(table.getCellByPosition(c, 0))
-          provider = self._document.getCurrentController().Frame
-          dispatcher = self.createUnoService("com.sun.star.frame.DispatchHelper")
-          dispatcher.executeDispatch(provider, ".uno:SetOptimalColumnWidth", "", 0, ())
-      vc.goDown(1, False)
-
+      try:
+          i = 0
+          for _ in table.getColumns(): i += 1
+          for c in range(i):
+              self._document.getCurrentController().select(table.getCellByPosition(c, 0))
+              provider = self._document.getCurrentController().Frame
+              dispatcher = self.createUnoService("com.sun.star.frame.DispatchHelper")
+              dispatcher.executeDispatch(provider, ".uno:SetOptimalColumnWidth", "", 0, ())
+          vc.goDown(1, False)
+      except Exception as e:
+        print('Warning: Could not set optimal column width:')
+        print(e.message)
       table.RelativeWidth = 100
 
    def guessImageSize(self, image):
