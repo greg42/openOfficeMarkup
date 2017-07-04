@@ -601,7 +601,8 @@ class Renderer(object):
       text = self._document.Text
       table = self._realDocument.createInstance("com.sun.star.text.TextTable")
       table.initialize(numRows, numCols)
-      table.RepeatHeadline = True
+      if not style or style == 'head_top' or style == '':
+         table.RepeatHeadline = True
       text.insertTextContent(self._cursor, table, 0)
    
       for numRow, row in enumerate(tableContent):
