@@ -296,9 +296,10 @@ handleExtendedCommand name args handleSpecialCommand =
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineSource")]) source
       "_q"     -> do text <- manyTill inlineQuotedContent (char '"' >> spaces)
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineQuote")]) text
-      "source" -> do skipEmptyLines
+      "source" -> do let language = fromMaybe "" $ lookup "language" args
+                     skipEmptyLines
                      source <- manyTill (verbatimContent "[/source]") (extendedCommandName "/source")
-                     return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "source")]) (removeTrailingNewline source)
+                     return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "source"), ("language", language)]) (removeTrailingNewline source)
       "label"  -> handleLab args
       "ref"    -> handleRef args
       "imgref" -> handleImgRef args
