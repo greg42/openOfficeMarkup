@@ -46,7 +46,7 @@ data DocumentContainer =   DocumentHeading   Heading [DocumentItem]
                          | DocumentTable     String (Maybe (String, String)) 
                                              [DocumentContainer]
                          | DocumentMetaContainer [(String,String)] [DocumentItem]
-                         deriving(Show)
+                         deriving(Show, Eq)
 
 showJSON' (Just x) = showJSON x
 showJSON' Nothing = JSNull
@@ -138,7 +138,7 @@ data DocumentItem =   ItemWord String
                     | ItemImage DocumentImage
                     | ItemLinebreak
                     | ItemMetaTag [(String, String)]
-                    deriving(Show)
+                    deriving(Show, Eq)
 
 instance JSON DocumentItem where
    showJSON (ItemWord x) = 
@@ -183,7 +183,7 @@ data OListItem = OListItem {   oListItemIndent  :: Int -- ^ The indentation leve
                                                           -- item. This is
                                                           -- something like
                                                           -- 1.2.3.
-                           } deriving(Show)
+                           } deriving(Show, Eq)
 
 instance JSON OListItem where
    showJSON oli = makeObj [   ("indent", showJSON $ oListItemIndent oli)
@@ -199,7 +199,7 @@ instance JSON OListItem where
 
 {-| An item in an un-ordered (bullet point) list -}
 data UListItem = UListItem { uListItemIndent  :: Int -- ^ The item's indent
-                           } deriving(Show)
+                           } deriving(Show, Eq)
 
 instance JSON UListItem where
    showJSON uli = makeObj [ ("indent", showJSON $ uListItemIndent uli) ]
@@ -217,7 +217,7 @@ data Heading = Heading {   headingLevel :: Int -- ^ The heading level
                            -- such as 1.2.3. This is useful for generating
                            -- a table of contents or for referencing sections
                            -- in a document.
-                       } deriving(Show)
+                       } deriving(Show, Eq)
 
 instance JSON Heading where
    showJSON hd  = makeObj [  ("level", showJSON $ headingLevel hd)
@@ -239,7 +239,7 @@ data DocumentImage = Image {
                       , imageCaption  :: String -- ^ The image's caption
                       , imageLabel    :: String -- ^ A label for referencing the
                                                 -- image
-                     } deriving(Show)
+                     } deriving(Show, Eq)
 
 instance JSON DocumentImage where
    showJSON (Image filename caption label) =
@@ -333,29 +333,29 @@ filterHelper func item =
       then [item]
       else []
 
-filterContainer func (DocumentHeading _ content) =
-   filterItems func content
+flatRecurse func (DocumentHeading _ content) =
+   func content
 
-filterContainer func (DocumentBoldFace content) =
-   filterItems func content
+flatRecurse func (DocumentBoldFace content) =
+   func content
 
-filterContainer func (DocumentParagraph content) =
-   filterItems func content
+flatRecurse func (DocumentParagraph content) =
+   func content
 
-filterContainer func (DocumentOList content) =
-   concat $ map ( (filterItems func) . snd) content
+flatRecurse func (DocumentOList content) =
+   concat $ map (func . snd) content
  
-filterContainer func (DocumentUList content) =
-   concat $ map ( (filterItems func) . snd) content
+flatRecurse func (DocumentUList content) =
+   concat $ map (func . snd) content
 
-filterContainer func (DocumentTableRow content) =
-   filterItems func (concat content)
+flatRecurse func (DocumentTableRow content) =
+   func (concat content)
 
-filterContainer func (DocumentTable _ _ content) =
-   filterItems func (map ItemDocumentContainer content)
+flatRecurse func (DocumentTable _ _ content) =
+   func (map ItemDocumentContainer content)
 
-filterContainer func (DocumentMetaContainer _ content) =
-   filterItems func content
+flatRecurse func (DocumentMetaContainer _ content) =
+   func content
 
 {-| FilterItems will recursively walk through the whole
  - document depth-first, returning a list of elements where
@@ -367,7 +367,44 @@ filterItems _ [] = []
 filterItems func (item:items) =
    case item of
       ItemDocumentContainer dc -> filterHelper func item ++
-                                  filterContainer func dc ++
+                                  flatRecurse (filterItems func) dc ++
                                   filterItems func items
       _ -> filterHelper func item ++
            filterItems func items
+
+deepRecurse func (DocumentHeading h content) =
+   DocumentHeading h $ func content
+
+deepRecurse func (DocumentBoldFace content) =
+   DocumentBoldFace $ func content
+
+deepRecurse func (DocumentParagraph content) =
+   DocumentParagraph $ func content
+
+deepRecurse func (DocumentOList content) =
+   DocumentOList $ map (\(a,b) -> (a, func b)) content
+ 
+deepRecurse func (DocumentUList content) =
+   DocumentUList $ map (\(a,b) -> (a, func b)) content
+
+deepRecurse func (DocumentTableRow content) =
+   DocumentTableRow $ map func content
+
+deepRecurse func (DocumentTable a b content) =
+   DocumentTable a b $ map (deepRecurse func) content
+
+deepRecurse func (DocumentMetaContainer x content) =
+   DocumentMetaContainer x $ func content
+
+transformDocument ::   (DocumentItem -> DocumentItem) -- ^ The transformation function
+                    -> [DocumentItem] -- ^ The document
+                    -> [DocumentItem] -- ^ The resulting document
+transformDocument _ [] = []
+transformDocument func (item:items) =
+   case item of
+      ItemDocumentContainer dc -> let container = if (func item == item) 
+                                                     then ItemDocumentContainer $ deepRecurse (transformDocument func) dc
+                                                     else func item
+                                  in (container : transformDocument func items)
+      _ -> (func item : transformDocument func items)
+
