@@ -21,7 +21,7 @@ module Text.Udoc.Document
    (DocumentItem(..), OListItem(..), UListItem(..), Heading(..),
     DocumentContainer(..), DocumentImage(..),
     computeHeadingNumbers, generateToc,
-    filterItems)
+    filterItems, transformDocument)
 
 where
 
