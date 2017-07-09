@@ -667,6 +667,7 @@ class Renderer(object):
       self._cursor.CharWeight = BOLD
       self.render(text)
       self._cursor.CharWeight = cw
+      self._cursor.setPropertyToDefault("CharWeight")
 
    def insertSourceCode(self, text):
       self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
