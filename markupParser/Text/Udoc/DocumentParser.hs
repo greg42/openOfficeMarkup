@@ -133,7 +133,9 @@ squareBrCommand =
 -- | Some text surrounded by curly brackets. This will internally be
 -- represented as a command called "_s" (for source code)
 inlineSource :: IParse Command
-inlineSource = do (char '{' >> return ())
+inlineSource = do backticks <- isOptionSet BacktickSource
+                  let chars = if backticks then "{`" else "{"
+                  (oneOf chars >> return ())
                   return ("_s", [])
 
 -- | Some text surrounded by double quotes. This will internally be
@@ -324,7 +326,9 @@ handleExtendedCommand name args handleSpecialCommand =
                                                          return $ concat $ map stripOuterParagraph inner
                          return $ DocumentTableRow cells
                      return $ ItemDocumentContainer $ DocumentTable style mCL rows
-      "_s"     -> do source <- manyTill inlineVerbatimContent (char '}' >> spaces)
+      "_s"     -> do backticks <- isOptionSet BacktickSource 
+                     let chars = if backticks then "`}" else "}"
+                     source <- manyTill inlineVerbatimContent (oneOf chars >> spaces)
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineSource")]) source
       "_q"     -> do text <- manyTill inlineQuotedContent (char '"' >> spaces)
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineQuote")]) text
