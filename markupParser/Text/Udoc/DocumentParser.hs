@@ -39,6 +39,7 @@ import           Control.Applicative hiding ((<|>), many, optional)
 
 data SyntaxOption = SkipNewlinesAfterUlist
                   | BacktickSource
+                  deriving (Eq)
 
 type SyntaxFlavor = [SyntaxOption]
 
@@ -56,6 +57,10 @@ type IParse r = ParsecT String ParserState (State SourcePos) r
 -- | The type for HandleSpecialCommand: Takes a name, arguments and returns
 -- a new parser 
 type HSP = String -> [(String, String)] -> IParse DocumentItem
+
+-- | Returns whether or not a parsing option is set.
+isOptionSet :: SyntaxOption -> IParse Bool
+isOptionSet opt = (elem opt . parserStateFlavor) <$> P.getState
 
 -- | A command is an entity in a document that will cause the backend renderer
 -- to perform a special operation. Commands in this markup language take the
@@ -570,6 +575,8 @@ uList hsp = do
    checkIndent
    lookAhead (uListItemBegin)
    result <- block $ uListItem hsp
+   eatSpaces <- isOptionSet SkipNewlinesAfterUlist
+   when eatSpaces $ skipEmptyLines
    return $ ItemDocumentContainer (DocumentUList result)
 
 -- | The begin of an item in an ordered list. Returns the indentation level
