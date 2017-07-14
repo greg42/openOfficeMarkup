@@ -38,6 +38,7 @@ import           Text.Parsec.Pos
 import           Control.Applicative hiding ((<|>), many, optional)
 
 data SyntaxOption = SkipNewlinesAfterUlist
+                  | SkipNewlinesAfterImage
                   | BacktickSource
                   deriving (Eq)
 
@@ -299,12 +300,15 @@ handleExtendedCommand name args handleSpecialCommand =
       "br"     -> return $ ItemLinebreak
       "meta"   -> return $ ItemMetaTag args
       "pb"     -> return $ ItemMetaTag [("type", "pagebreak")]
-      "image"  -> do if (isNothing(lookup "label" args) || isNothing(lookup "path" args) || isNothing(lookup "caption" args))
-                        then fail "Image tag needs label caption and path"
-                        else return $ ItemImage (Image (fromJust (lookup "path"    args))
-                                                 (fromJust (lookup "caption" args))
-                                                 (fromJust (lookup "label"   args))
-                                                )
+      "image"  -> do label   <- mlookup "label"   args "Missing label in image tag"
+                     caption <- mlookup "caption" args "Missing caption in image tag"
+                     path    <- mlookup "path"    args "Missing path in image tag"
+                     eatSpaces <- isOptionSet SkipNewlinesAfterImage 
+                     when eatSpaces skipEmptyLines 
+                     return $ ItemImage $ Image path caption label
+                     where mlookup k a errmsg = case lookup k a of
+                                                   Nothing -> fail errmsg
+                                                   Just val -> return val
       "table"  -> do let mCL = ((,)) <$> lookup "caption" args <*> lookup "label" args
                      let style = fromMaybe "head_top" $ lookup "style" args
                      skipEmptyLines
