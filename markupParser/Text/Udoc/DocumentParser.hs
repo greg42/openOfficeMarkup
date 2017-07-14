@@ -40,6 +40,7 @@ import           Control.Applicative hiding ((<|>), many, optional)
 data SyntaxOption = SkipNewlinesAfterUlist
                   | SkipNewlinesAfterImage
                   | BacktickSource
+                  | SkipNewlinesAfterSourceBlock
                   deriving (Eq)
 
 type SyntaxFlavor = [SyntaxOption]
@@ -335,6 +336,8 @@ handleExtendedCommand name args handleSpecialCommand =
       "source" -> do let language = fromMaybe "" $ lookup "language" args
                      skipEmptyLines
                      source <- manyTill (verbatimContent "[/source]") (extendedCommandName "/source")
+                     eatSpaces <- isOptionSet SkipNewlinesAfterSourceBlock
+                     when eatSpaces skipEmptyLines
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "source"), ("language", language)]) (removeTrailingNewline source)
       "label"  -> handleLab args
       "ref"    -> handleRef args
