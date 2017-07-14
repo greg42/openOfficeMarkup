@@ -22,22 +22,36 @@ This module contains the implementation of the udoc parser.
 
 module Text.Udoc.DocumentParser where
 
-import Text.ParserCombinators.Parsec hiding (State, try, spaces)
-import Text.Parsec.Prim (parserZero, runParserT, ParsecT, try)
-import Control.Monad
-import Control.Monad.State
-import Text.JSON
-import Data.Either
-import Data.Either.Utils
-import Text.Udoc.Document
-import Data.Maybe
-import Data.Functor.Identity
-import Text.Parsec.Indent
-import Text.Parsec.Pos
-import Control.Applicative hiding ((<|>), many, optional)
+import           Text.ParserCombinators.Parsec hiding (State, try, spaces)
+import qualified Text.ParserCombinators.Parsec as P
+import           Text.Parsec.Prim (parserZero, runParserT, ParsecT, try)
+import           Control.Monad
+import           Control.Monad.State
+import           Text.JSON
+import           Data.Either
+import           Data.Either.Utils
+import           Text.Udoc.Document
+import           Data.Maybe
+import           Data.Functor.Identity
+import           Text.Parsec.Indent
+import           Text.Parsec.Pos
+import           Control.Applicative hiding ((<|>), many, optional)
+
+data SyntaxOption = SkipNewlinesAfterUlist
+                  | BacktickSource
+
+type SyntaxFlavor = [SyntaxOption]
+
+data ParserState = ParserState {
+    parserStateFlavor :: SyntaxFlavor
+}
+
+-- | A parser state without any syntax options set
+defaultParserState :: ParserState
+defaultParserState = ParserState []
 
 -- | Indentation sensitive parser
-type IParse r = ParsecT String () (State SourcePos) r
+type IParse r = ParsecT String ParserState (State SourcePos) r
 
 -- | The type for HandleSpecialCommand: Takes a name, arguments and returns
 -- a new parser 
@@ -50,12 +64,14 @@ type HSP = String -> [(String, String)] -> IParse DocumentItem
 type Command = (String, [(String, String)])
 
 -- | Parse a udoc document and return the document items.
-parseDocument :: HSP -> String -> [DocumentItem]
-parseDocument hsp input = 
-   let result = myParse id (documentItems hsp) input :: Either ParseError [DocumentItem]
-   in forceEither result
+parseDocument :: ParserState -> HSP -> String -> Either ParseError ([DocumentItem], ParserState)
+parseDocument initialState hsp input = 
+   myParse id parser input
    where myParse f p src = fst $ flip runState (f $ initialPos "") $ 
-                                      runParserT p () "" src
+                                      runParserT p initialState "" src
+         parser = do items <- documentItems hsp
+                     s     <- P.getState
+                     return (items, s)
 
 -- | Skips zero or more space or tab characters.
 spaces :: IParse ()
@@ -290,7 +306,14 @@ handleExtendedCommand name args handleSpecialCommand =
                      t <- table
                      -- We simply apply our document parser to each table
                      -- cell.
-                     let rows = map (DocumentTableRow . (map $ concat . (map stripOuterParagraph) . (parseDocument handleSpecialCommand))) t
+                     rows <- forM t $ \row -> do
+                         cells <- forM row $ \cell -> do
+                            s <- P.getState
+                            case parseDocument s handleSpecialCommand cell of
+                               Left err -> error $ show err
+                               Right (inner, newS) -> do P.setState newS
+                                                         return $ concat $ map stripOuterParagraph inner
+                         return $ DocumentTableRow cells
                      return $ ItemDocumentContainer $ DocumentTable style mCL rows
       "_s"     -> do source <- manyTill inlineVerbatimContent (char '}' >> spaces)
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineSource")]) source

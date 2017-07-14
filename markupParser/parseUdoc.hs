@@ -19,4 +19,5 @@ handleSpecialCommand name args =
          _ -> fail $ "Unknown command " ++ name
 
 main = do input <- getContents
-          putStr $ encode $ parseDocument handleSpecialCommand input
+          let Right (parsed, _) = parseDocument defaultParserState handleSpecialCommand input
+          putStr $ encode parsed
