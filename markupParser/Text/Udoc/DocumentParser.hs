@@ -93,11 +93,26 @@ whiteSpace = skipMany $ oneOf " \t\n"
 -- | Top level parser. It will parse headings or paragraphs until
 -- eof is found.
 documentItems :: HSP -> IParse [DocumentItem]
-documentItems hsp = do whiteSpace
-                       items <- many ( (try (heading hsp)) <|> paragraph hsp)
-                       whiteSpace
-                       eof
-                       return items
+documentItems hsp = do
+    whiteSpace
+    -- Before we start our paragraph based parsing, let's see if the
+    -- document starts with one or more meta tags. If so, we just
+    -- include them separately, i.e., without a surrounding paragraph.
+    docHead <- many $ tryCommand isMetaTag
+    whiteSpace
+    items   <- many $ (try $ heading hsp) <|> paragraph hsp
+    whiteSpace
+    eof
+    return $ docHead ++ items
+    where tryCommand pred = try $ do
+             cmd <- extendedCommand hsp
+             optional newline
+             if pred cmd
+                then return cmd
+                else fail "Did not find expected command"
+          isMetaTag (ItemMetaTag _) = True
+          isMetaTag _               = False
+
 
 -- | A string between two double quotes.
 quotedContent :: IParse String
