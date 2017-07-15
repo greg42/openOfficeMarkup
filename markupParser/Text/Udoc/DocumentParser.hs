@@ -25,6 +25,7 @@ module Text.Udoc.DocumentParser where
 import           Text.ParserCombinators.Parsec hiding (State, try, spaces)
 import qualified Text.ParserCombinators.Parsec as P
 import           Text.Parsec.Prim (parserZero, runParserT, ParsecT, try)
+import qualified Text.Parsec.Prim as PP
 import           Control.Monad
 import           Control.Monad.State
 import           Text.JSON
@@ -46,12 +47,13 @@ data SyntaxOption = SkipNewlinesAfterUlist
 type SyntaxFlavor = [SyntaxOption]
 
 data ParserState = ParserState {
-    parserStateFlavor :: SyntaxFlavor
+    parserStateFlavor               :: SyntaxFlavor
+  , parserStateLastInlineOpeningTag :: Char
 }
 
 -- | A parser state without any syntax options set
 defaultParserState :: ParserState
-defaultParserState = ParserState []
+defaultParserState = ParserState [] '{'
 
 -- | Indentation sensitive parser
 type IParse r = ParsecT String ParserState (State SourcePos) r
@@ -136,7 +138,8 @@ squareBrCommand =
 inlineSource :: IParse Command
 inlineSource = do backticks <- isOptionSet BacktickSource
                   let chars = if backticks then "{`" else "{"
-                  (oneOf chars >> return ())
+                  opener <- oneOf chars
+                  PP.modifyState $ \x -> x { parserStateLastInlineOpeningTag = opener }
                   return ("_s", [])
 
 -- | Some text surrounded by double quotes. This will internally be
@@ -327,9 +330,12 @@ handleExtendedCommand name args handleSpecialCommand =
                                                          return $ concat $ map stripOuterParagraph inner
                          return $ DocumentTableRow cells
                      return $ ItemDocumentContainer $ DocumentTable style mCL rows
-      "_s"     -> do backticks <- isOptionSet BacktickSource 
-                     let chars = if backticks then "`}" else "}"
-                     source <- manyTill inlineVerbatimContent (oneOf chars >> spaces)
+      "_s"     -> do x <- parserStateLastInlineOpeningTag <$> P.getState
+                     let chr = case x of
+                                  '{' -> '}'
+                                  '`' -> '`'
+                                  x   -> x
+                     source <- manyTill inlineVerbatimContent (char chr >> spaces)
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineSource")]) source
       "_q"     -> do text <- manyTill inlineQuotedContent (char '"' >> spaces)
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineQuote")]) text
