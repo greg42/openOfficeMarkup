@@ -123,9 +123,9 @@ class Renderer(object):
          # Ignore unknown meta container types..
          return
 
-   def renderTable(self, table, caption, label, style):
+   def renderTable(self, table, caption, label, style, widths):
       normTable = [x['content'] for x in table]
-      self.insertTable(normTable, caption, label, style)
+      self.insertTable(normTable, caption, label, style, widths)
 
    def renderUListItem(self, uli, content):
       # Do not put a space in front of a source code or bold list entry
@@ -171,7 +171,7 @@ class Renderer(object):
       elif containerType == 'DocumentParagraph':
          self.renderParagraph(container['content'])
       elif containerType == 'DocumentTable':
-         self.renderTable(container['content'], container['caption'], container['label'], container['style'])
+         self.renderTable(container['content'], container['caption'], container['label'], container['style'], container['widths'])
       elif containerType == 'DocumentMetaContainer':
          self.renderMetaContainer(container['content'],
                              container['properties'])
@@ -330,6 +330,16 @@ class Renderer(object):
         print('Warning: Could not set optimal column width:')
         print(str(e))
       table.RelativeWidth = 100
+
+   def setColumnWidths(self, table, widths):
+      seps = table.TableColumnSeparators
+      newseps = []
+      lastpos = 0
+      for (sep, width) in zip(list(seps), widths):
+         newseps.append(sep)
+         sep.Position = lastpos + width * table.TableColumnRelativeSum
+         lastpos = sep.Position
+      table.TableColumnSeparators = tuple(newseps + list(seps)[len(widths):])
 
    def guessImageSize(self, image):
       # Maximum width and height in 1/100 mm
@@ -590,7 +600,7 @@ class Renderer(object):
       self._cursor.gotoEnd(False)      
       self._cursor.BreakType = PAGE_BEFORE
 
-   def insertTable(self, tableContent, caption, labelName, style):
+   def insertTable(self, tableContent, caption, labelName, style, widths):
       numRows = len(tableContent)
       tmpCols = list(map(len, tableContent))
       # Empty tables are simply ignored
@@ -630,7 +640,10 @@ class Renderer(object):
             self._document = oldDoc
             self._cursor = oldCur
    
-      self.optimalTableWidth(table)
+      if len(widths) > 0:
+           self.setColumnWidths(table, widths)
+      else:
+           self.optimalTableWidth(table)
 
       if caption != None and labelName != None:
          CAPTION_TITLE=self.i18n['table']
