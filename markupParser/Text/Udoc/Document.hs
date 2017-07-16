@@ -43,7 +43,7 @@ data DocumentContainer =   DocumentHeading   Heading [DocumentItem]
                          | DocumentOList     [(OListItem, [DocumentItem])]
                          | DocumentUList     [(UListItem, [DocumentItem])]
                          | DocumentTableRow  [[DocumentItem]]
-                         | DocumentTable     String (Maybe (String, String)) 
+                         | DocumentTable     String (Maybe (String, String)) [Float]
                                              [DocumentContainer]
                          | DocumentMetaContainer [(String,String)] [DocumentItem]
                          deriving(Show, Eq)
@@ -77,12 +77,13 @@ instance JSON DocumentContainer where
                , ("content", showJSON items)
               ]
 
-   showJSON (DocumentTable style mCL items) = 
+   showJSON (DocumentTable style mCL widths items) = 
       makeObj [  ("type", showJSON "DocumentTable")
                , ("content", showJSON items)
                , ("caption", showJSON' $ fst <$> mCL)
                , ("label", showJSON' $ snd <$> mCL)
                , ("style", showJSON style)
+               , ("widths", showJSON widths)
               ]
 
    showJSON (DocumentTableRow items) = 
@@ -116,9 +117,11 @@ instance JSON DocumentContainer where
                                         caption <- getOne' "caption"
                                         label   <- getOne' "label"
                                         style   <- getOne "style"
+                                        widths  <- getOne "widths"
                                         return $ DocumentTable 
                                                    style 
                                                    (((,)) <$> caption <*> label) 
+                                                   widths
                                                    thing
          "DocumentTableRow"       -> DocumentTableRow  <$> getOne "content"
          "DocumentMetaContainer"  -> DocumentMetaContainer <$> 
@@ -351,7 +354,7 @@ flatRecurse func (DocumentUList content) =
 flatRecurse func (DocumentTableRow content) =
    func (concat content)
 
-flatRecurse func (DocumentTable _ _ content) =
+flatRecurse func (DocumentTable _ _ _ content) =
    func (map ItemDocumentContainer content)
 
 flatRecurse func (DocumentMetaContainer _ content) =
@@ -390,8 +393,8 @@ deepRecurse func (DocumentUList content) =
 deepRecurse func (DocumentTableRow content) =
    DocumentTableRow $ map func content
 
-deepRecurse func (DocumentTable a b content) =
-   DocumentTable a b $ map (deepRecurse func) content
+deepRecurse func (DocumentTable a b c content) =
+   DocumentTable a b c $ map (deepRecurse func) content
 
 deepRecurse func (DocumentMetaContainer x content) =
    DocumentMetaContainer x $ func content

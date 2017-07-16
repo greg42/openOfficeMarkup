@@ -37,6 +37,7 @@ import           Data.Functor.Identity
 import           Text.Parsec.Indent
 import           Text.Parsec.Pos
 import           Control.Applicative hiding ((<|>), many, optional)
+import           Text.Read
 
 data SyntaxOption = SkipNewlinesAfterUlist
                   | SkipNewlinesAfterImage
@@ -332,6 +333,10 @@ handleExtendedCommand name args handleSpecialCommand =
                                                    Just val -> return val
       "table"  -> do let mCL = ((,)) <$> lookup "caption" args <*> lookup "label" args
                      let style = fromMaybe "head_top" $ lookup "style" args
+                     let mWidths = sequence $ map readMaybe $ map (filter (/= ' ')) $ split ',' $ fromMaybe "" $ lookup "widths" args
+                     widths <- case mWidths of
+                                     Nothing -> fail "Cannot parse table widths argument."
+                                     Just w -> return w
                      skipEmptyLines
                      t <- table
                      -- We simply apply our document parser to each table
@@ -344,7 +349,7 @@ handleExtendedCommand name args handleSpecialCommand =
                                Right (inner, newS) -> do P.setState newS
                                                          return $ concat $ map stripOuterParagraph inner
                          return $ DocumentTableRow cells
-                     return $ ItemDocumentContainer $ DocumentTable style mCL rows
+                     return $ ItemDocumentContainer $ DocumentTable style mCL widths rows
       "_s"     -> do x <- parserStateLastInlineOpeningTag <$> P.getState
                      let chr = case x of
                                   '{' -> '}'
@@ -371,6 +376,9 @@ handleExtendedCommand name args handleSpecialCommand =
    where stripOuterParagraph :: DocumentItem -> [DocumentItem]
          stripOuterParagraph (ItemDocumentContainer (DocumentParagraph x)) = x
          stripOuterParagraph x = [x]
+         split :: Eq a => a -> [a] -> [[a]]
+         split d [] = []
+         split d s = x : split d (drop 1 y) where (x,y) = span (/= d) s
 -- | Parses one line from a table. Be aware, it really parses one line, not
 -- one row.
 oneTableLine :: IParse [String]
