@@ -402,7 +402,8 @@ handleExtendedCommand name args handleSpecialCommand =
       "imgref" -> handleImgRef args
       "tblref" -> handleTblRef args
       "setpos" -> handleSetPos args
-      "quote"  -> do content <- manyTill (verbatimContent "[/quote]") (extendedCommandName "/quote")
+      "quote"  -> do optional newline
+                     content <- manyTill (verbatimContent "[/quote]") (extendedCommandName "/quote")
                      eatSpaces <- isOptionSet SkipNewlinesAfterSourceOrQuoteBlock
                      when eatSpaces skipEmptyLines
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "blockquote")]) (removeTrailingNewline content)
