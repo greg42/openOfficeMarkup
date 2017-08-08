@@ -38,11 +38,13 @@ import           Text.Parsec.Indent
 import           Text.Parsec.Pos
 import           Control.Applicative hiding ((<|>), many, optional)
 import           Text.Read
+import           Data.List
 
 data SyntaxOption = SkipNewlinesAfterUlist
                   | SkipNewlinesAfterImage
                   | BacktickSource
-                  | SkipNewlinesAfterSourceBlock
+                  | SkipNewlinesAfterSourceOrQuoteBlock
+                  | BlockQuotes
                   deriving (Eq)
 
 type SyntaxFlavor = [SyntaxOption]
@@ -66,6 +68,12 @@ type HSP = String -> [(String, String)] -> IParse DocumentItem
 -- | Returns whether or not a parsing option is set.
 isOptionSet :: SyntaxOption -> IParse Bool
 isOptionSet opt = (elem opt . parserStateFlavor) <$> P.getState
+
+-- | Executes a parser if any only if a configuration option is set.
+whenOptionSet :: SyntaxOption -> IParse () -> IParse ()
+whenOptionSet opt act = do
+    s <- isOptionSet opt
+    when s $ act
 
 -- | A command is an entity in a document that will cause the backend renderer
 -- to perform a special operation. Commands in this markup language take the
@@ -101,7 +109,7 @@ documentItems hsp = do
     -- include them separately, i.e., without a surrounding paragraph.
     docHead <- many $ tryCommand isMetaTag
     whiteSpace
-    items   <- many $ (try $ heading hsp) <|> paragraph hsp
+    items   <- many $ (try $ heading hsp) <|> (try $ optionIf BlockQuotes $ blockQuote) <|> paragraph hsp
     whiteSpace
     eof
     return $ docHead ++ items
@@ -113,7 +121,11 @@ documentItems hsp = do
                 else fail "Did not find expected command"
           isMetaTag (ItemMetaTag _) = True
           isMetaTag _               = False
-
+          optionIf opt a = do
+             s <- isOptionSet opt
+             if s
+                then a
+                else fail ""
 
 -- | A string between two double quotes.
 quotedContent :: IParse String
@@ -378,7 +390,7 @@ handleExtendedCommand name args handleSpecialCommand =
       "source" -> do let language = fromMaybe "" $ lookup "language" args
                      skipEmptyLines
                      source <- manyTill (verbatimContent "[/source]") (extendedCommandName "/source")
-                     eatSpaces <- isOptionSet SkipNewlinesAfterSourceBlock
+                     eatSpaces <- isOptionSet SkipNewlinesAfterSourceOrQuoteBlock
                      when eatSpaces skipEmptyLines
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "source"), ("language", language)]) (removeTrailingNewline source)
       "label"  -> handleLab args
@@ -386,6 +398,16 @@ handleExtendedCommand name args handleSpecialCommand =
       "imgref" -> handleImgRef args
       "tblref" -> handleTblRef args
       "setpos" -> handleSetPos args
+      "quote"  -> do content <- manyTill (verbatimContent "[/quote]") (extendedCommandName "/quote")
+                     eatSpaces <- isOptionSet SkipNewlinesAfterSourceOrQuoteBlock
+                     when eatSpaces skipEmptyLines
+                     return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "blockquote")]) (removeTrailingNewline content)
+      "label"  -> handleLab args
+      "ref"    -> handleRef args
+      "imgref" -> handleImgRef args
+      "tblref" -> handleTblRef args
+      "setpos" -> handleSetPos args
+                     
       -- If we end up here, we can at least check if the
       -- identified command is some special-purpose
       -- command
@@ -396,6 +418,7 @@ handleExtendedCommand name args handleSpecialCommand =
          split :: Eq a => a -> [a] -> [[a]]
          split d [] = []
          split d s = x : split d (drop 1 y) where (x,y) = span (/= d) s
+
 -- | Parses one line from a table. Be aware, it really parses one line, not
 -- one row.
 oneTableLine :: IParse [String]
@@ -441,7 +464,12 @@ table = do
 
 -- | Simply parse a paragraph.
 paragraph :: HSP -> IParse DocumentItem
-paragraph = paragraphWithout parserZero
+paragraph hsp = do
+    s <- isOptionSet BlockQuotes 
+    let without = if s 
+                     then (blockQuoteBegin >> return ())
+                     else parserZero
+    paragraphWithout without hsp
 
 -- | Parse a paragraph. This Paragraph could contain a list of words or lists or
 -- special commands. However, this parser will fail if parser x succeeds.
@@ -531,7 +559,8 @@ inlineQuotedContent = do
     return result
 
 -- | The start of the regular line of text. This is only a lookahead, which
--- will not match lists or headings.
+-- will not match lists or headings (or block quotes if this feature is
+-- enabled)
 beginRegularLine :: IParse ()
 beginRegularLine =
    (notFollowedBy $ listItemBegin) >>
@@ -698,3 +727,20 @@ heading hsp = do level <- headingBegin
                               return l
                  skipEmptyLines
                  return $ ItemDocumentContainer (DocumentHeading (Heading level Nothing) (concat items))
+
+-- | The start of a block quote
+blockQuoteBegin :: IParse ()
+blockQuoteBegin = do
+    spaces
+    char '>'
+    spaces
+
+-- | A block quote
+blockQuote :: IParse DocumentItem
+blockQuote = do
+    lines <- many1 $ do
+       blockQuoteBegin
+       thisLine <- many $ noneOf "\n"
+       optional newline
+       return thisLine
+    return $ ItemDocumentContainer $ DocumentMetaContainer [("type","blockquote")] [ItemWord $ intercalate "\n" lines]

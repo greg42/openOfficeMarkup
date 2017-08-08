@@ -117,6 +117,8 @@ class Renderer(object):
          self.insertInlineSourceCode(content)
       if properties['type'] == 'inlineQuote':
          self.insertInlineQuote(content)
+      if properties['type'] == 'blockquote':
+         self.insertSourceCode(content) # It's a hack, but it works for now.
       elif self.handleCustomMetaContainer(properties, content):
          return
       else:
