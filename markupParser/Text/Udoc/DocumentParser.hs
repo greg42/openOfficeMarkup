@@ -45,6 +45,7 @@ data SyntaxOption = SkipNewlinesAfterUlist
                   | BacktickSource
                   | SkipNewlinesAfterSourceOrQuoteBlock
                   | BlockQuotes
+                  | FencedCodeBlocks
                   deriving (Eq)
 
 type SyntaxFlavor = [SyntaxOption]
@@ -109,7 +110,10 @@ documentItems hsp = do
     -- include them separately, i.e., without a surrounding paragraph.
     docHead <- many $ tryCommand isMetaTag
     whiteSpace
-    items   <- many $ (try $ heading hsp) <|> (try $ optionIf BlockQuotes $ blockQuote) <|> paragraph hsp
+    items   <- many $     (try $ heading hsp) 
+                      <|> (try $ optionIf BlockQuotes $ blockQuote) 
+                      <|> (try $ optionIf FencedCodeBlocks $ fencedCodeBlock)
+                      <|> paragraph hsp
     whiteSpace
     eof
     return $ docHead ++ items
@@ -465,11 +469,11 @@ table = do
 -- | Simply parse a paragraph.
 paragraph :: HSP -> IParse DocumentItem
 paragraph hsp = do
-    s <- isOptionSet BlockQuotes 
-    let without = if s 
-                     then (blockQuoteBegin >> return ())
-                     else parserZero
-    paragraphWithout without hsp
+    bq <- isOptionSet BlockQuotes 
+    fc <- isOptionSet FencedCodeBlocks
+    let without = [(bq, blockQuoteBegin), (fc, fencedCodeBlockBegin)]
+    let withouts = foldl (\p (flag, parser) -> if flag then (p <|> (try parser)) else p) parserZero without
+    paragraphWithout withouts hsp
 
 -- | Parse a paragraph. This Paragraph could contain a list of words or lists or
 -- special commands. However, this parser will fail if parser x succeeds.
@@ -744,3 +748,24 @@ blockQuote = do
        optional newline
        return thisLine
     return $ ItemDocumentContainer $ DocumentMetaContainer [("type","blockquote")] [ItemWord $ intercalate "\n" lines]
+
+-- | The start of a fenced code block
+fencedCodeBlockBegin :: IParse ()
+fencedCodeBlockBegin = do
+    string "```"
+    return ()
+
+-- | A fenced code block
+fencedCodeBlock :: IParse DocumentItem
+fencedCodeBlock = do
+    fencedCodeBlockBegin
+    language <- many $ noneOf "\n"
+    newline
+    lines <- many1 $ do
+       notFollowedBy $ string "```"
+       thisLine <- many $ noneOf "\n"
+       newline
+       return thisLine
+    string "```"
+    newline
+    return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "source"), ("language", language)] [ItemWord $ intercalate "\n" lines]

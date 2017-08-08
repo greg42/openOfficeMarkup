@@ -19,6 +19,6 @@ handleSpecialCommand name args =
          _ -> fail $ "Unknown command " ++ name
 
 main = do input <- getContents
-          case parseDocument (defaultParserState { parserStateFlavor = [BlockQuotes] }) handleSpecialCommand input of
+          case parseDocument (defaultParserState { parserStateFlavor = [BlockQuotes, FencedCodeBlocks] }) handleSpecialCommand input of
              Left err -> putStrLn $ show err
              Right (parsed, _) -> putStr $ encode parsed
