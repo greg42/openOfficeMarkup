@@ -500,16 +500,24 @@ escaped x = (string ("\\"++[x])) >> return x
 
 -- | Parses one character in a regular word of the text.
 wordChar :: IParse Char
-wordChar =     (try $ escaped '[')
-           <|> (try $ escaped ']')
-           <|> (try $ escaped '|')
-           <|> (try $ escaped '{')
-           <|> (try $ escaped '}')
-           <|> (try $ escaped '"')
-           <|> (try $ escaped '\\')
-           <|> noneOf " \t\n[]|{}\""
-           <?> "a valid word character"
-
+wordChar = do
+    bts <- isOptionSet BacktickSource 
+    fcb <- isOptionSet FencedCodeBlocks
+    let additional = if bts || fcb
+                       then "`"
+                       else ""
+    doWordChar additional 
+    where doWordChar additional =
+                (try $ escaped '[')
+            <|> (try $ escaped ']')
+            <|> (try $ escaped '|')
+            <|> (try $ escaped '{')
+            <|> (try $ escaped '}')
+            <|> (try $ escaped '"')
+            <|> (try $ escaped '\\')
+            <|> (noneOf $ " \t\n[]|{}\"" ++ additional)
+            <?> "a valid word character"
+   
 -- | Parses a whole word in the text of the document.
 word :: IParse DocumentItem
 word = do result <- many1 wordChar
