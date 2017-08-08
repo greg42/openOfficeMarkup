@@ -118,7 +118,7 @@ class Renderer(object):
       if properties['type'] == 'inlineQuote':
          self.insertInlineQuote(content)
       if properties['type'] == 'blockquote':
-         self.insertSourceCode(content) # It's a hack, but it works for now.
+         self.insertQuote(content)
       elif self.handleCustomMetaContainer(properties, content):
          return
       else:
@@ -695,6 +695,15 @@ class Renderer(object):
       self.changeParaStyle(oldStyle)
       self._inSource = False
 
+   def insertQuote(self, text):
+      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      oldStyle = self.changeParaStyle(self.STYLE_QUOTE)
+   
+      self.render(text)
+   
+      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self.changeParaStyle(oldStyle)
+
    def insertInlineQuote(self, text):
       if self.needSpace():
          self.insertString(" ")
@@ -741,6 +750,7 @@ class VanillaRenderer(Renderer):
       self.STYLE_PARAM_HEADING       = "Heading %d"
       self.STYLE_TERMS               = "Text body"
       self.STYLE_SOURCE_CODE         = "Source Code"
+      self.STYLE_QUOTE               = "Quotations"
       self.STYLE_INLINE_SOURCE_CODE  = "Source Code"
       self.STYLE_TABLE_HEADING_BACKGROUND = 11111111
       self.custom_i18n['en'] = {
