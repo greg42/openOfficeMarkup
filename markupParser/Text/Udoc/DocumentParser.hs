@@ -524,8 +524,11 @@ inlineVerbatimContent = do
 -- besides ", which needs to be escaped.
 inlineQuotedContent :: IParse DocumentItem
 inlineQuotedContent = do 
-   result <- many1 (wordChar <|> oneOf " \t")
-   return $ ItemWord result
+    result <- word
+    spaces
+    skipMany $ char '\n'
+    spaces
+    return result
 
 -- | The start of the regular line of text. This is only a lookahead, which
 -- will not match lists or headings.
