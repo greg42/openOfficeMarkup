@@ -768,4 +768,5 @@ fencedCodeBlock = do
        return thisLine
     string "```"
     newline
+    skipEmptyLines
     return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "source"), ("language", language)] [ItemWord $ intercalate "\n" lines]
