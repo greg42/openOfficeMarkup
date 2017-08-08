@@ -262,6 +262,22 @@ handleImgRef = handleMetaTag "imgref" [("label", "label")] []
 handleTblRef :: [(String, String)] -> IParse DocumentItem
 handleTblRef = handleMetaTag "tblref" [("label", "label")] []
 
+-- | Handles the "setpos" tag, which is used internally to signal
+-- the parser that the current 'SourcePos' changed.
+handleSetPos :: [(String, String)] -> IParse DocumentItem
+handleSetPos args = do
+    ifHave "filename" args $ \filename ->
+       modifySourcePos $ (flip setSourceName) filename
+    ifHave "line" args $ \linenumber -> 
+       modifySourcePos $ (flip setSourceLine) (read linenumber)
+    ifHave "column" args $ \column ->
+       modifySourcePos $ (flip setSourceColumn) (read column)
+    handleMetaTag "setpos" [] [("filename", "filename"), ("line", "line"), ("column", "column")] args
+    where ifHave x l a = case lookup x l of
+                            Just v -> a v
+                            Nothing -> return ()
+          modifySourcePos f = getPosition >>= (setPosition . f)
+
 -- | Creates an ItemDocumentMetaContainer from the container type, its
 -- properties and its content.
 createMetaContainer ::    String -- ^ The container type
@@ -369,6 +385,7 @@ handleExtendedCommand name args handleSpecialCommand =
       "ref"    -> handleRef args
       "imgref" -> handleImgRef args
       "tblref" -> handleTblRef args
+      "setpos" -> handleSetPos args
       -- If we end up here, we can at least check if the
       -- identified command is some special-purpose
       -- command
