@@ -623,7 +623,7 @@ class Renderer(object):
             if numRow == 0 and (style == 'head_top' or style == 'matrix'):
                cell.BackColor = self.STYLE_TABLE_HEADING_BACKGROUND
                self.setParStyle(cell, self.STYLE_TABLE_HEADER)
-            if numCol == 0 and (style == 'head_left' or style == 'matrix'):
+            elif numCol == 0 and (style == 'head_left' or style == 'matrix'):
                cell.BackColor = self.STYLE_TABLE_HEADING_BACKGROUND
                self.setParStyle(cell, self.STYLE_TABLE_HEADER)
             else:
