@@ -644,7 +644,9 @@ class Renderer(object):
       if len(widths) > 0:
            self.setColumnWidths(table, widths)
       else:
-           self.optimalTableWidth(table)
+           def f(self):
+                self.optimalTableWidth(table)
+           self.doAfterRendering(f)
 
       if caption != None and labelName != None:
          CAPTION_TITLE=self.i18n['table']
