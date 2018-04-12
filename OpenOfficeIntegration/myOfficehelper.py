@@ -28,14 +28,16 @@ class OpenOfficeInstance(object):
          else:
             # Lets hope that works..
             office = '/usr/bin'
+
       office = os.path.join(office, "soffice")
       if platform.startswith("win"):
           office += ".exe"
 
       self._pidfile = "/tmp/markup_renderer_OOinstance" #XXX Windows compat needed
+      self._socket = "name=markupRendererPipe"
+
       xLocalContext = uno.getComponentContext()
       self._resolver = xLocalContext.ServiceManager.createInstanceWithContext("com.sun.star.bridge.UnoUrlResolver", xLocalContext)
-      self._socket = "name=markupRendererPipe"
 
       args = ["--invisible", "--nologo", "--nodefault", "--norestore", "--nofirststartwizard"]
       if headless:
@@ -46,14 +48,16 @@ class OpenOfficeInstance(object):
       else:
          cmdArray = [office]
       cmdArray += args + ["--accept=pipe,%s;urp" % self._socket]
+
       if( not os.path.isfile(self._pidfile)):
          self.pid = os.spawnv(os.P_NOWAIT, office, cmdArray)
          f = open(self._pidfile,"w")
          f.write(str(self.pid))
 
    def close(self):
-     if(self.pid):
+     if hasattr(self, 'pid'):
         os.kill(self.pid, signal.SIGTERM)
+     if os.path.isfile(self._pidfile):
         os.remove(self._pidfile)
 
    def getContext(self):
