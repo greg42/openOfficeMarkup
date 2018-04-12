@@ -13,12 +13,8 @@
 
 import sys
 import os
-# Yeah, I know. But this works. Hackers gonna hack..
-import traceback
-currentDir = os.path.dirname(traceback.extract_stack()[-1][0])
-sys.path.append(currentDir)
 
-from Renderer import VanillaRenderer
+from Renderer.Renderer import VanillaRenderer
 from OOoBackend import OpenOfficeBackend
 
 if len(sys.argv) < 4:
