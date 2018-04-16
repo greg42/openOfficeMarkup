@@ -147,7 +147,7 @@ class Renderer(object):
          self.currentListLevel -= 1
 
       if self.currentListLevel == 0:
-         self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+         self.insert_paragraph_character(avoid_empty_paragraph=True)
          self._cursor.ParaStyleName = oldName
 
    def renderOlist(self, olist):
@@ -160,7 +160,7 @@ class Renderer(object):
          self.currentListLevel -= 1
 
       if self.currentListLevel == 0:
-         self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+         self.insert_paragraph_character(avoid_empty_paragraph=True)
          self._cursor.ParaStyleName = oldName
 
    def renderContainer(self, container):
@@ -456,7 +456,7 @@ class Renderer(object):
    def insertImage(self, path, caption, labelName):
       CAPTION_TITLE=self.i18n['figure']
 
-      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self.insert_paragraph_character(avoid_empty_paragraph=True)
       self._insertImage(path)
 
       oldStyle = self.changeParaStyle(self.STYLE_FIGURE_CAPTION)
@@ -466,7 +466,7 @@ class Renderer(object):
       self.insertString(' - ')
       self.insertString(caption)
 
-      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self.insert_paragraph_character(avoid_empty_paragraph=True)
       self.changeParaStyle(oldStyle)
 
       # Remember the number of the current image, so that we'll later
@@ -475,13 +475,13 @@ class Renderer(object):
       self.Images[labelName] = cnt
 
    def insertUListItem(self, content):
-      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self.insert_paragraph_character(avoid_empty_paragraph=True)
       self._cursor.ParaStyleName = self.STYLE_LIST_1 # % global_currentListLevel
       self._cursor.NumberingLevel = self.currentListLevel - 1
       self.render(content)
 
    def insertOListItem(self, content, startVal = None):
-      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self.insert_paragraph_character(avoid_empty_paragraph=True)
       self._cursor.ParaStyleName = self.STYLE_NUMBERING_1 # % global_currentListLevel
       self._cursor.NumberingLevel = self.currentListLevel - 1
       if startVal != None:
@@ -657,7 +657,7 @@ class Renderer(object):
          self.insertString(' - ')
          self.insertString(caption)
 
-         self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+         self.insert_paragraph_character(avoid_empty_paragraph=True)
          self.changeParaStyle(oldStyle)
 
          # Remember the number of the current table so that later we'll
@@ -673,7 +673,7 @@ class Renderer(object):
       self._cursor.ParaStyleName = self.STYLE_PARAM_HEADING % headingLevel
       headingNumber = self._cursor.ListLabelString
 
-      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self.insert_paragraph_character(avoid_empty_paragraph=True)
       self._cursor.ParaStyleName = self.STYLE_STANDARD_TEXT
 
       self.CurrentHeading = (headingLevel, headingText, headingNumber)
@@ -686,23 +686,23 @@ class Renderer(object):
       self._cursor.setPropertyToDefault("CharWeight")
 
    def insertSourceCode(self, text):
-      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self.insert_paragraph_character(avoid_empty_paragraph=True)
       oldStyle = self.changeParaStyle(self.STYLE_SOURCE_CODE)
    
       self._inSource = True
       self.render(text)
    
-      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self.insert_paragraph_character(avoid_empty_paragraph=True)
       self.changeParaStyle(oldStyle)
       self._inSource = False
 
    def insertQuote(self, text):
-      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self.insert_paragraph_character(avoid_empty_paragraph=True)
       oldStyle = self.changeParaStyle(self.STYLE_QUOTE)
    
       self.render(text)
    
-      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self.insert_paragraph_character(avoid_empty_paragraph=True)
       self.changeParaStyle(oldStyle)
 
    def insertInlineQuote(self, text):
@@ -733,7 +733,11 @@ class Renderer(object):
 
    def insertParagraph(self, text):
       self.render(text)
-      self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+      self.insert_paragraph_character(avoid_empty_paragraph=True)
+
+   def insert_paragraph_character(self, avoid_empty_paragraph=True):
+       if avoid_empty_paragraph and not self._cursor.isStartOfParagraph():
+           self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
 
 class VanillaRenderer(Renderer):
    def __init__(self):
