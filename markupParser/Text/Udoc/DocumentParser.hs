@@ -756,6 +756,7 @@ blockQuote = do
        thisLine <- many $ noneOf "\n"
        optional newline
        return thisLine
+    skipEmptyLines
     return $ ItemDocumentContainer $ DocumentMetaContainer [("type","blockquote")] [ItemWord $ intercalate "\n" lines]
 
 -- | The start of a fenced code block
