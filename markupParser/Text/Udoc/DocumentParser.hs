@@ -515,6 +515,7 @@ wordChar = do
             <|> (try $ escaped '}')
             <|> (try $ escaped '"')
             <|> (try $ escaped '\\')
+            <|> (try $ escaped '`')
             <|> (noneOf $ " \t\n[]|{}\"" ++ additional)
             <?> "a valid word character"
    
@@ -545,7 +546,7 @@ verbatimBold closingTag = do
 verbatimText :: String -> IParse DocumentItem
 verbatimText closingTag = do 
    result <- many1 (wordChar 
-                    <|> oneOf "\n\t |{}\"]"
+                    <|> oneOf "\n\t |{}\"]`"
                     <|> ( (notFollowedBy $ string closingTag) >>
                           (notFollowedBy $ string "[b]") >>
                           (notFollowedBy $ string "[/b]") >>
