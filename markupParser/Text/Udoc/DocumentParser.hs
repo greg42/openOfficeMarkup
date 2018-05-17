@@ -544,15 +544,25 @@ verbatimBold closingTag = do
 -- we handle [b] and [/b], in order to allow for bold parts in source
 -- code.
 verbatimText :: String -> IParse DocumentItem
-verbatimText closingTag = do 
-   result <- many1 (wordChar 
-                    <|> oneOf "\n\t |{}\"]`"
-                    <|> ( (notFollowedBy $ string closingTag) >>
-                          (notFollowedBy $ string "[b]") >>
-                          (notFollowedBy $ string "[/b]") >>
-                          (char '[')
-                        )
-                    )
+verbatimText closingTag = do
+   result <- many1 (
+                      (
+                         (
+                              (try $ lookAhead $ string "\\[b]")
+                              <|> (try $ lookAhead $ string "\\[/b]")
+                              <|> (try $ lookAhead $ string $ "\\" ++ closingTag)
+                         ) >>
+                         (escaped '[')
+                      )
+                      <|>
+                      (
+                         (notFollowedBy $ string closingTag) >>
+                         (notFollowedBy $ string "[b]") >>
+                         (notFollowedBy $ string "[/b]") >>
+                         (anyChar)
+                      )
+                   )
+
    return $ ItemWord result
 
 -- | Contents of the inline verbatim container - may basically be everything
