@@ -235,7 +235,10 @@ class Renderer(object):
                return True
          return False
       def fun(item):
-         if self._isWord(item) and not startsWithPunctation(self._getWord(item)):
+         if self._isWord(item) \
+               and not startsWithPunctation(self._getWord(item)) \
+               and not self._cursor.isStartOfParagraph():
+
             self.insertString(' ')
          return True
       self._hookRender = fun
