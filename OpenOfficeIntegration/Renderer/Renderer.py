@@ -127,7 +127,17 @@ class Renderer(object):
 
    def renderTable(self, table, caption, label, style, widths):
       normTable = [x['content'] for x in table]
-      self.insertTable(normTable, caption, label, style, widths)
+      table = self.insertTable(normTable, caption, label, style, widths)
+      self.styleTable(table)
+
+   def styleTable(self, table):
+      """ Defines the style of a default table element.
+          Overwrite this method to define custom table style.
+
+          List of further options:
+          https://www.openoffice.org/api/docs/common/ref/com/sun/star/text/TextTable.html
+      """
+      return
 
    def renderUListItem(self, uli, content):
       # Do not put a space in front of a source code or bold list entry
@@ -615,6 +625,7 @@ class Renderer(object):
       text = self._document.Text
       table = self._realDocument.createInstance("com.sun.star.text.TextTable")
       table.initialize(numRows, numCols)
+
       if not style or style == 'head_top' or style == '':
          table.RepeatHeadline = True
       text.insertTextContent(self._cursor, table, 0)
@@ -667,6 +678,8 @@ class Renderer(object):
          # be able to reference it properly.
          cnt = len(self.Tables)
          self.Tables[labelName] = cnt
+
+      return table
 
    def insertHeading(self, headingLevel, headingText):
       if headingLevel > 4:
