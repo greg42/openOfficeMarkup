@@ -29,8 +29,6 @@ import qualified Text.Parsec.Prim as PP
 import           Control.Monad
 import           Control.Monad.State
 import           Text.JSON
---import           Data.Either
---import           Data.Either.Utils
 import           Text.Udoc.Document
 import           Data.Maybe
 import           Data.Functor.Identity
