@@ -357,9 +357,9 @@ class Renderer(object):
 
    def guessImageSize(self, image):
       # Maximum width and height in 1/100 mm
-      maxWidth = 150 * 100  # Template maximum width in millimeters is 150.
-                            # Let's save some margin.
-      maxHeight = 195 * 100 # Template maximum height in millimeters is 215.
+      maxWidth = self.template_width() * 100           # Template maximum width in millimeters is 160.
+      maxHeight = (self.template_height() - 20) * 100  # Template maximum height in millimeters is 236.
+                                                       # Let's save some margin.
 
       size = image.Size
       if size.Height == 0 or size.Width == 0:
@@ -754,6 +754,24 @@ class Renderer(object):
    def insert_paragraph_character(self, avoid_empty_paragraph=True):
        if avoid_empty_paragraph and not self._cursor.isStartOfParagraph():
            self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+
+   def template_widht(self):
+       """
+       Defines the maximum usable template width in millimeters.
+
+       Override this method in a child renderer to provide proper measurements
+       for the content area of your template.
+       """
+       return 150
+
+   def template_height(self):
+       """
+       Defines the maximum usable template height in millimeters.
+
+       Override this method in a child renderer to provide proper measurements
+       for the content area of your template.
+       """
+       return 215
 
 class VanillaRenderer(Renderer):
    def __init__(self):
