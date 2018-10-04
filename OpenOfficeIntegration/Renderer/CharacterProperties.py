@@ -1,0 +1,66 @@
+from enum import Enum
+
+class CharacterProperties(Enum):
+    """
+    Enum containing all (optional) character properties. The related values
+    represent the actual property names that must be used to access or change
+    the actual property value.
+
+    Overview over all available CharacterProperties and their expected data
+    types: https://www.openoffice.org/api/docs/common/ref/com/sun/star/style/CharacterProperties.html
+    """
+
+    Color = "CharColor"
+    FontCharSet = "CharFontCharSet"
+    FontFamily = "CharFontFamily"
+    FontName = "CharFontName"
+    FontPitch = "CharFontPitch"
+    FontStyleName = "CharFontStyleName"
+    Height = "CharHeight"
+    Locale = "CharLocale"
+    Posture = "CharPosture"
+    Underline = "CharUnderline"
+    UnderlineColor = "CharUnderlineColor"
+    UnderlineHasColor = "CharUnderlineHasColor"
+    Weight = "CharWeight"
+
+    """ Optionial Properties (may not exist) """
+
+    AutoKerning = "CharAutoKerning"
+    BackColor = "CharBackColor"
+    BackTransparent = "CharBackTransparent"
+    CaseMap = "CharCaseMap"
+    CombineIsOn = "CharCombineIsOn"
+    CombinePrefix = "CharCombinePrefix"
+    CombineSuffix = "CharCombineSuffix"
+    Contoured = "CharContoured"
+    CrossedOut = "CharCrossedOut"
+    Emphasis = "CharEmphasis"
+    Escapement = "CharEscapement"
+    EscapementHeight = "CharEscapementHeight"
+    Flash = "CharFlash"
+    FontType = "CharFontType"
+    Hidden = "CharHidden"
+    HyperLinkName = "HyperLinkName"
+    HyperLinkTarget = "HyperLinkTarget"
+    HyperLinkURL = "HyperLinkURL"
+    KeepTogether = "CharKeepTogether"
+    Kerning = "CharKerning"
+    NoHyphenation = "CharNoHyphenation"
+    NoLineBreak = "CharNoLineBreak"
+    Relief = "CharRelief"
+    Rotation = "CharRotation"
+    RotationIsFitToLine = "CharRotationIsFitToLine"
+    RubyAdjust = "RubyAdjust"
+    RubyCharStyleName = "RubyCharStyleName"
+    RubyIsAbove = "RubyIsAbove"
+    RubyText = "RubyText"
+    ScaleWidth = "CharScaleWidth"
+    Shadowed = "CharShadowed"
+    Strinkeout = "CharStrikeout"
+    StyleName = "CharStyleName"
+    StyleNames = "CharStyleNames"
+    TextUserDefinedAttributes = "TextUserDefinedAttributes"
+    UnvisitedCharStyleName = "UnvisitedCharStyleName"
+    VisitedCharStyleName = "VisitedCharStyleName"
+    WordMode = "CharWordMode"

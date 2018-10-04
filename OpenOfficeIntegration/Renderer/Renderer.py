@@ -13,6 +13,7 @@ import uno
 import json
 import platform
 import time
+
 from com.sun.star.style.BreakType import PAGE_AFTER,PAGE_BEFORE
 from com.sun.star.text.ControlCharacter import PARAGRAPH_BREAK
 from com.sun.star.text.TextContentAnchorType import AS_CHARACTER
@@ -27,6 +28,8 @@ from com.sun.star.awt.FontWeight import BOLD, NORMAL
 from com.sun.star.beans import PropertyValue
 from com.sun.star.beans.PropertyState import DIRECT_VALUE
 from com.sun.star.lang import Locale
+
+from .CharacterProperties import CharacterProperties as CharProp
 
 import traceback
 import os
@@ -325,9 +328,16 @@ class Renderer(object):
       self._cursor.ParaStyleName = newStyle
       return old
 
-   def changeCharStyle(self, newStyle):
-      old = self._cursor.CharStyleName
-      self._cursor.CharStyleName = newStyle
+   def changeCharProperty(self, property_type: CharProp, value):
+      property_name = property_type.value
+
+      old = self._cursor.getPropertyValue(property_name)
+
+      if value:
+          self._cursor.setPropertyValue(property_name, value)
+      else:
+          self._cursor.setPropertyToDefault(property_name)
+
       return old
 
    def optimalTableWidth(self, table):
@@ -695,11 +705,9 @@ class Renderer(object):
       self.CurrentHeading = (headingLevel, headingText, headingNumber)
 
    def insertBoldFace(self, text):
-      cw = self._cursor.CharWeight
-      self._cursor.CharWeight = BOLD
+      old_cw = self.changeCharProperty(CharProp.Weight, BOLD)
       self.render(text)
-      self._cursor.CharWeight = cw
-      self._cursor.setPropertyToDefault("CharWeight")
+      self.changeCharProperty(CharProp.Weight, old_cw)
 
    def insertSourceCode(self, text):
       self.insert_paragraph_character(avoid_empty_paragraph=True)
@@ -739,13 +747,10 @@ class Renderer(object):
    def insertInlineSourceCode(self, text):
       if self.needSpace():
          self.insertString(' ')
-      old = self.changeCharStyle(self.STYLE_INLINE_SOURCE_CODE)
+      old_name = self.changeCharProperty(CharProp.StyleName, self.STYLE_INLINE_SOURCE_CODE)
       self.render(text)
       self.smartSpace()
-      # Thanks, joern.
-      self._cursor.CharStyleName = "Default Style"
-      self._cursor.setPropertyToDefault("CharStyleName")
-      #self.changeCharStyle(old)
+      self.changeCharProperty(CharProp.StyleName, old_name)
 
    def insertParagraph(self, text):
       self.render(text)
