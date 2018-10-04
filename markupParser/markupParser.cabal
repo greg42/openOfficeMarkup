@@ -21,17 +21,16 @@ library
                        , parsec >=3.1
                        , mtl >=2.1
                        , json >=0.7
-                       , MissingH >=1.2
                        , transformers >=0.3
                        , indents >=0.3 && < 0.4
 
 Executable parseUdoc
   Main-is:           parseUdoc.hs
+  other-modules:     Text.Udoc.Document, Text.Udoc.DocumentParser
   Build-Depends:       base
                      , parsec >=3.1
                      , mtl >=2.1
                      , json >=0.7
-                     , MissingH >=1.2
                      , transformers >=0.3
                      , indents >=0.3 && < 0.4
                      , markupParser
