@@ -760,7 +760,7 @@ class Renderer(object):
        if avoid_empty_paragraph and not self._cursor.isStartOfParagraph():
            self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
 
-   def template_widht(self):
+   def template_width(self):
        """
        Defines the maximum usable template width in millimeters.
 
