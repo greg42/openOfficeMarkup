@@ -240,21 +240,30 @@ class Renderer(object):
             return item['ItemWord']
       return None
 
-   def smartSpace(self):
-      punctation = ('.', ',', ';', ':', '!', '?', ')', ']')
-      def startsWithPunctation(x):
-         for p in punctation:
-            if x.startswith(p):
-               return True
-         return False
-      def fun(item):
-         if self._isWord(item) \
-               and not startsWithPunctation(self._getWord(item)) \
-               and not self._cursor.isStartOfParagraph():
+   def smartSpace(self, split_ending=True):
+      punctuation = ('.', ',', ';', ':', '!', '?', ')', ']')
 
-            self.insertString(' ')
-         return True
-      self._hookRender = fun
+      def starts_with_punctuation(word):
+         for symbol in punctuation:
+            if word.startswith(symbol):
+               return True
+
+         return False
+
+      def smart_space_hook(item):
+         word = self._getWord(item)
+         if not split_ending and word == "s":
+            return True
+
+         if not self._isWord(word)\
+            or starts_with_punctuation(word)\
+            or self._cursor.isStartOfParagraph():
+
+            return True
+
+         self.insertString(' ')
+
+      self._hookRender = smart_space_hook
 
    def needSpace(self):
        w = self._getWord(self._lastItem)
@@ -747,9 +756,10 @@ class Renderer(object):
    def insertInlineSourceCode(self, text):
       if self.needSpace():
          self.insertString(' ')
+
       old_name = self.changeCharProperty(CharProp.StyleName, self.STYLE_INLINE_SOURCE_CODE)
       self.render(text)
-      self.smartSpace()
+      self.smartSpace(split_ending=False)
       self.changeCharProperty(CharProp.StyleName, old_name)
 
    def insertParagraph(self, text):
