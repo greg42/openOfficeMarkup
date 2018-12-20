@@ -252,16 +252,15 @@ class Renderer(object):
 
       def smart_space_hook(item):
          word = self._getWord(item)
-         if not split_ending and word == "s":
-            return True
 
-         if not self._isWord(word)\
-            or starts_with_punctuation(word)\
-            or self._cursor.isStartOfParagraph():
+         if self._isWord(word)\
+            and not starts_with_punctuation(word)\
+            and not self._cursor.isStartOfParagraph()\
+            and (split_ending or word != "s"):
 
-            return True
+            self.insertString(' ')
 
-         self.insertString(' ')
+         return True
 
       self._hookRender = smart_space_hook
 
