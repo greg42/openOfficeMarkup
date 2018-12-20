@@ -240,7 +240,7 @@ class Renderer(object):
             return item['ItemWord']
       return None
 
-   def smartSpace(self, split_ending=True):
+   def smartSpace(self, skip_if=lambda cursor, word: cursor.isStartOfParagraph()):
       punctuation = ('.', ',', ';', ':', '!', '?', ')', ']')
 
       def starts_with_punctuation(word):
@@ -255,8 +255,7 @@ class Renderer(object):
 
          if self._isWord(word)\
             and not starts_with_punctuation(word)\
-            and not self._cursor.isStartOfParagraph()\
-            and (split_ending or word != "s"):
+            and not (skip_if and skip_if(self._cursor, word)):
 
             self.insertString(' ')
 
@@ -560,7 +559,7 @@ class Renderer(object):
          refName = 'X' + refName
       self.knownImageRefs.append(refName)
       self.insertBookmark(refName)
-      self.smartSpace()
+      self.smartSpace(skip_if=lambda _cursor, _word: False)
 
       space = self.needSpace()
       def do_insert_imageref(self):
@@ -592,7 +591,7 @@ class Renderer(object):
          refName = 'X' + refName
       self.knownTableRefs.append(refName)
       self.insertBookmark(refName)
-      self.smartSpace()
+      self.smartSpace(skip_if=lambda _cursor, _word: False)
 
       space = self.needSpace()
       def do_insert_tableref(self):
@@ -758,7 +757,7 @@ class Renderer(object):
 
       old_name = self.changeCharProperty(CharProp.StyleName, self.STYLE_INLINE_SOURCE_CODE)
       self.render(text)
-      self.smartSpace(split_ending=False)
+      self.smartSpace(skip_if=lambda _cursor, word: word == "s")
       self.changeCharProperty(CharProp.StyleName, old_name)
 
    def insertParagraph(self, text):
