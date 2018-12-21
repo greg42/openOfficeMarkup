@@ -241,21 +241,28 @@ class Renderer(object):
             return item['ItemWord']
       return None
 
-   def smartSpace(self):
-      punctation = ('.', ',', ';', ':', '!', '?', ')', ']')
-      def startsWithPunctation(x):
-         for p in punctation:
-            if x.startswith(p):
+   def smartSpace(self, skip_if=lambda cursor, word: cursor.isStartOfParagraph()):
+      punctuation = ('.', ',', ';', ':', '!', '?', ')', ']')
+
+      def starts_with_punctuation(word):
+         for symbol in punctuation:
+            if word.startswith(symbol):
                return True
+
          return False
-      def fun(item):
-         if self._isWord(item) \
-               and not startsWithPunctation(self._getWord(item)) \
-               and not self._cursor.isStartOfParagraph():
+
+      def smart_space_hook(item):
+         word = self._getWord(item)
+
+         if self._isWord(word)\
+            and not starts_with_punctuation(word)\
+            and not (skip_if and skip_if(self._cursor, word)):
 
             self.insertString(' ')
+
          return True
-      self._hookRender = fun
+
+      self._hookRender = smart_space_hook
 
    def needSpace(self):
        w = self._getWord(self._lastItem)
@@ -560,7 +567,7 @@ class Renderer(object):
          refName = 'X' + refName
       self.knownImageRefs.append(refName)
       self.insertBookmark(refName)
-      self.smartSpace()
+      self.smartSpace(skip_if=lambda _cursor, _word: False)
 
       space = self.needSpace()
       def do_insert_imageref(self):
@@ -592,7 +599,7 @@ class Renderer(object):
          refName = 'X' + refName
       self.knownTableRefs.append(refName)
       self.insertBookmark(refName)
-      self.smartSpace()
+      self.smartSpace(skip_if=lambda _cursor, _word: False)
 
       space = self.needSpace()
       def do_insert_tableref(self):
@@ -756,9 +763,10 @@ class Renderer(object):
    def insertInlineSourceCode(self, text):
       if self.needSpace():
          self.insertString(' ')
+
       old_name = self.changeCharProperty(CharProp.StyleName, self.STYLE_INLINE_SOURCE_CODE)
       self.render(text)
-      self.smartSpace()
+      self.smartSpace(skip_if=lambda _cursor, word: word == "s")
       self.changeCharProperty(CharProp.StyleName, old_name)
 
    def insertParagraph(self, text):
