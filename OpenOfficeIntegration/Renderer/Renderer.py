@@ -14,20 +14,19 @@ import json
 import platform
 import time
 
+from com.sun.star.awt.FontWeight import BOLD, NORMAL
+from com.sun.star.lang import Locale
 from com.sun.star.style.BreakType import PAGE_AFTER,PAGE_BEFORE
+from com.sun.star.style.NumberingType import ARABIC
 from com.sun.star.text.ControlCharacter import PARAGRAPH_BREAK
 from com.sun.star.text.TextContentAnchorType import AS_CHARACTER
-from com.sun.star.awt import Size
 from com.sun.star.text.ReferenceFieldPart import CHAPTER, CATEGORY_AND_NUMBER
 from com.sun.star.text.ReferenceFieldSource import BOOKMARK,REFERENCE_MARK,SEQUENCE_FIELD
-from com.sun.star.style.NumberingType import ARABIC
 from com.sun.star.text.SetVariableType import SEQUENCE
 
-from com.sun.star.lang import XMain
-from com.sun.star.awt.FontWeight import BOLD, NORMAL
-from com.sun.star.beans import PropertyValue
-from com.sun.star.beans.PropertyState import DIRECT_VALUE
-from com.sun.star.lang import Locale
+# ---------------------------------------------------------
+# Setup hacks ...
+# ---------------------------------------------------------
 
 from .CharacterProperties import CharacterProperties as CharProp
 
@@ -39,6 +38,8 @@ sys.path.append(currentDir)
 
 if sys.version >= '3':
    unicode = str
+
+# ---------------------------------------------------------
 
 class Renderer(object):
    def __init__(self):
@@ -357,12 +358,19 @@ class Renderer(object):
 
    def setColumnWidths(self, table, widths):
       seps = table.TableColumnSeparators
+      if seps is None:
+         print("Can't set unified column width.")
+         print("Maybe the table contains rows with a changing amount of cells.")
+         return
+
       newseps = []
       lastpos = 0
+
       for (sep, width) in zip(list(seps), widths):
          newseps.append(sep)
          sep.Position = lastpos + width * table.TableColumnRelativeSum
          lastpos = sep.Position
+
       table.TableColumnSeparators = tuple(newseps + list(seps)[len(widths):])
 
    def guessImageSize(self, image):
