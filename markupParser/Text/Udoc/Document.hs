@@ -30,8 +30,6 @@ import Control.Monad.State
 import Data.Maybe
 import Control.Applicative
 
-mLookup a as = maybe (fail $ "No such element: " ++ a) return (lookup a as)
-
 ------------------------ Data Definitions -----------------------------
 
 {-| A container for other document items. A container is something that has
@@ -48,11 +46,17 @@ data DocumentContainer =   DocumentHeading   Heading [DocumentItem]
                          | DocumentMetaContainer [(String,String)] [DocumentItem]
                          deriving(Show, Eq)
 
+{-| Convert an optional string into the related JSValue. -}
+showJSON' :: Maybe String -> JSValue
 showJSON' (Just x) = showJSON x
 showJSON' Nothing = JSNull
 
+{-| Lookup the JSValue of a map key that may not exist. -}
+mLookup :: String -> [(String, JSValue)] -> Result JSValue
+mLookup a as = maybe (fail $ "No such element: " ++ a) return (lookup a as)
+
 instance JSON DocumentContainer where
-   showJSON (DocumentHeading heading items) = 
+   showJSON (DocumentHeading heading items) =
       makeObj [  ("type", showJSON "DocumentHeading")
                , ("DocumentHeading", showJSON heading)
                , ("content", showJSON items)
@@ -261,6 +265,7 @@ instance JSON DocumentImage where
 
 ------------------------ Compute the heading level --------------------
 
+{-| Generate a list of zeroes with a specific size. -}
 listOfSize :: Int -> [Int]
 listOfSize n = take n (repeat 0)
 
@@ -285,6 +290,7 @@ nestingLevel level = do
    stack <- get
    return $ head stack
 
+computeHeadingNumbers' :: [DocumentItem] -> State NestedStack [DocumentItem]
 computeHeadingNumbers' [] = do return []
 computeHeadingNumbers' ( (ItemDocumentContainer (DocumentHeading (Heading level _) content) ):rest) = do
    computedNumber <- nestingLevel level
@@ -301,8 +307,12 @@ computeHeadingNumbers x = evalState (computeHeadingNumbers' x) [[-1]]
 
 ------------------------- Generating a TOC ----------------------------
 
+{-| Increase heading level by one. -}
+headingIndent :: [Int] -> Int
 headingIndent l = length l + 1
 
+{-| Join multiple strings with a specific delimiter. -}
+strJoin :: String -> [String] -> String
 strJoin delim [] = ""
 strJoin delim (head:rest) = let end = strJoin delim rest in
                             if end /= "" then
@@ -310,8 +320,11 @@ strJoin delim (head:rest) = let end = strJoin delim rest in
                             else
                                head
 
+{-| Convert heading number list representation into a string. .-}
+headingNumber :: [Int] -> String
 headingNumber level = strJoin "." (map (show . (+1)) level)
 
+headingToToc :: DocumentItem -> Maybe (OListItem, [DocumentItem])
 headingToToc (ItemDocumentContainer (DocumentHeading (Heading _ cn) headline)) = let 
                                 indent   = headingIndent `fmap` cn
                                 num      = headingNumber `fmap` cn
@@ -331,11 +344,14 @@ generateToc document = ItemDocumentContainer $
 
 -------------------------- Filter out certain items -------------------
 
+{-| Returns `[a]` if func(a) == True. -}
+filterHelper :: (a -> Bool) -> a -> [a]
 filterHelper func item =
    if func item
       then [item]
       else []
 
+{-| Returns all elements in the document with func(element) == True. -}
 flatRecurse func (DocumentHeading _ content) =
    func content
 
@@ -375,6 +391,8 @@ filterItems func (item:items) =
       _ -> filterHelper func item ++
            filterItems func items
 
+deepRecurse :: ([DocumentItem] -> [DocumentItem]) -> DocumentContainer -> DocumentContainer
+deepRecurse func (DocumentHeading h content) = DocumentHeading h $ func content
 deepRecurse func (DocumentHeading h content) =
    DocumentHeading h $ func content
 
