@@ -241,12 +241,21 @@ class Renderer(object):
             return item['ItemWord']
       return None
 
-   def smartSpace(self, skip_if=lambda cursor, word: cursor.isStartOfParagraph()):
-      punctuation = ('.', ',', ';', ':', '!', '?', ')', ']')
+   @staticmethod
+   def _get_meta_tag_type(item):
+      if type(item) is not dict \
+            or 'ItemMetaTag' not in item \
+            or 'type' not in item['ItemMetaTag']:
 
-      def starts_with_punctuation(word):
-         for symbol in punctuation:
-            if word.startswith(symbol):
+         return None
+
+      return item['ItemMetaTag']['type']
+
+   def smartSpace(self):
+      punctation = ('.', ',', ';', ':', '!', '?', ')', ']')
+      def startsWithPunctation(x):
+         for p in punctation:
+            if x.startswith(p):
                return True
 
          return False
@@ -265,12 +274,15 @@ class Renderer(object):
       self._hookRender = smart_space_hook
 
    def needSpace(self):
-       w = self._getWord(self._lastItem)
-       if w != None:
-           if w.endswith('('):
-               return False
-           else:
-               return True
+      w = self._getWord(self._lastItem)
+      if w is not None:
+         return not w.endswith('(')
+
+      type_name = self._get_meta_tag_type(self._lastItem)
+      if type_name not in ["footnote", "imgref", "inlineimage", "ref", "tblref"]:
+         return False
+
+      return True
 
    def render(self, item, lookAhead = None):
       if self._hookRender:
