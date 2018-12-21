@@ -629,7 +629,8 @@ class Renderer(object):
       self.doAfterRendering(updateToc)
 
    def insertPageBreak(self):
-      self._cursor.gotoEnd(False)      
+      self.insert_paragraph_character(avoid_empty_paragraph=True)
+      self._cursor.gotoEnd(False)
       self._cursor.BreakType = PAGE_BEFORE
 
    def insertTable(self, tableContent, caption, labelName, style, widths):
@@ -765,8 +766,10 @@ class Renderer(object):
       self.insert_paragraph_character(avoid_empty_paragraph=True)
 
    def insert_paragraph_character(self, avoid_empty_paragraph=True):
-       if avoid_empty_paragraph and not self._cursor.isStartOfParagraph():
-           self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+       if not avoid_empty_paragraph \
+          or not self._cursor.isStartOfParagraph():
+
+          self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
 
    def template_width(self):
        """
