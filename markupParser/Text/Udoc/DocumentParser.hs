@@ -325,6 +325,7 @@ extendedCommandName name = try (do (name', args) <- extendedCommand'
 -- | If the last item in a list of items is a word, this function will remove
 -- the last trailing newline of this word.
 removeTrailingNewline :: [DocumentItem] -> [DocumentItem]
+removeTrailingNewline [] = []
 removeTrailingNewline items =
    init items ++ nl (last items)
    where nl (ItemWord w) = [ItemWord $ stripLastNewline w]
@@ -780,7 +781,7 @@ fencedCodeBlock = do
     fencedCodeBlockBegin
     language <- many $ noneOf "\n"
     newline
-    lines <- many1 $ do
+    lines <- many $ do
        notFollowedBy $ string "```"
        thisLine <- many $ noneOf "\n"
        newline
