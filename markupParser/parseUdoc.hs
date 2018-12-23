@@ -13,11 +13,13 @@ import Text.Udoc.DocumentParser
 import Text.Parsec.Prim
 import Data.Functor.Identity
 
+handleSpecialCommand :: String -> [(String, String)] -> IParse DocumentItem
 handleSpecialCommand name args =
    case name of
          "tableOfContents" -> return $ ItemMetaTag ([("type", "tableOfContents")])
          _ -> fail $ "Unknown command " ++ name
 
+main :: IO ()
 main = do input <- getContents
           case parseDocument (defaultParserState { parserStateFlavor = [BlockQuotes, FencedCodeBlocks] }) handleSpecialCommand input of
              Left err -> putStrLn $ show err

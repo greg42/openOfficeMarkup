@@ -25,11 +25,13 @@ module Text.Udoc.Document
 
 where
 
-import Text.JSON
-import Control.Monad.State
-import Data.Maybe
-import Control.Applicative
+import           Text.JSON
+import           Control.Monad.State
+import           Data.Maybe
+import           Control.Applicative
+import           Data.List
 
+mLookup :: (Monad m) => String -> [(String, b)] -> m b
 mLookup a as = maybe (fail $ "No such element: " ++ a) return (lookup a as)
 
 ------------------------ Data Definitions -----------------------------
@@ -48,6 +50,7 @@ data DocumentContainer =   DocumentHeading   Heading [DocumentItem]
                          | DocumentMetaContainer [(String,String)] [DocumentItem]
                          deriving(Show, Eq)
 
+showJSON' :: (JSON a) => Maybe a -> JSValue
 showJSON' (Just x) = showJSON x
 showJSON' Nothing = JSNull
 
@@ -285,14 +288,15 @@ nestingLevel level = do
    stack <- get
    return $ head stack
 
-computeHeadingNumbers' [] = do return []
+computeHeadingNumbers' :: [DocumentItem] -> State NestedStack [DocumentItem]
+computeHeadingNumbers' [] = return []
 computeHeadingNumbers' ( (ItemDocumentContainer (DocumentHeading (Heading level _) content) ):rest) = do
    computedNumber <- nestingLevel level
    rest' <- computeHeadingNumbers' rest
    return $ ItemDocumentContainer (DocumentHeading (Heading level (Just computedNumber)) content):rest'
 
-computeHeadingNumbers' (x:rest) = do   rest' <- computeHeadingNumbers' rest
-                                       return $ x:rest'
+computeHeadingNumbers' (x:rest) = do rest' <- computeHeadingNumbers' rest
+                                     return $ x:rest'
 
 {-| Computes the heading numbers and returns a new document where all heading
     have a headingComputedNumber. -}
@@ -301,25 +305,20 @@ computeHeadingNumbers x = evalState (computeHeadingNumbers' x) [[-1]]
 
 ------------------------- Generating a TOC ----------------------------
 
+headingIndent :: [a] -> Int
 headingIndent l = length l + 1
 
-strJoin delim [] = ""
-strJoin delim (head:rest) = let end = strJoin delim rest in
-                            if end /= "" then
-                               head ++ delim ++ end
-                            else
-                               head
+headingNumber :: [Int] -> String
+headingNumber level = intercalate "." $ map (show . (+1)) level
 
-headingNumber level = strJoin "." (map (show . (+1)) level)
-
-headingToToc (ItemDocumentContainer (DocumentHeading (Heading _ cn) headline)) = let 
-                                indent   = headingIndent `fmap` cn
-                                num      = headingNumber `fmap` cn
-                            in
-                            if not (isJust indent) || not (isJust num) then
-                               Nothing
-                            else
-                               Just $ (OListItem (fromJust indent) (fromJust num), headline)
+headingToToc :: DocumentItem -> Maybe (OListItem, [DocumentItem])
+headingToToc (ItemDocumentContainer (DocumentHeading (Heading _ cn) headline)) = 
+    let indent   = headingIndent <$> cn
+        num      = headingNumber <$> cn
+        minnm    = ((,)) <$> indent <*> num
+    in case minnm of
+       Nothing -> Nothing
+       Just (ind, nmb) -> Just $ (OListItem ind nmb, headline)
 
 headingToToc _ = Nothing
 
@@ -327,15 +326,17 @@ headingToToc _ = Nothing
     contents as a DocumentOList. -}
 generateToc :: [DocumentItem] -> DocumentItem
 generateToc document = ItemDocumentContainer $
-                         DocumentOList $ map fromJust (filter isJust (map headingToToc document))
+                         DocumentOList $ catMaybes $ map headingToToc document
 
 -------------------------- Filter out certain items -------------------
 
+filterHelper :: (a -> Bool) -> a -> [a]
 filterHelper func item =
    if func item
       then [item]
       else []
 
+flatRecurse :: ([DocumentItem] -> [a]) -> DocumentContainer -> [a]
 flatRecurse func (DocumentHeading _ content) =
    func content
 
@@ -375,6 +376,7 @@ filterItems func (item:items) =
       _ -> filterHelper func item ++
            filterItems func items
 
+deepRecurse :: ([DocumentItem] -> [DocumentItem]) -> DocumentContainer -> DocumentContainer
 deepRecurse func (DocumentHeading h content) =
    DocumentHeading h $ func content
 
