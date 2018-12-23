@@ -14,20 +14,19 @@ import json
 import platform
 import time
 
+from com.sun.star.awt.FontWeight import BOLD, NORMAL
+from com.sun.star.lang import Locale
 from com.sun.star.style.BreakType import PAGE_AFTER,PAGE_BEFORE
+from com.sun.star.style.NumberingType import ARABIC
 from com.sun.star.text.ControlCharacter import PARAGRAPH_BREAK
 from com.sun.star.text.TextContentAnchorType import AS_CHARACTER
-from com.sun.star.awt import Size
 from com.sun.star.text.ReferenceFieldPart import CHAPTER, CATEGORY_AND_NUMBER
 from com.sun.star.text.ReferenceFieldSource import BOOKMARK,REFERENCE_MARK,SEQUENCE_FIELD
-from com.sun.star.style.NumberingType import ARABIC
 from com.sun.star.text.SetVariableType import SEQUENCE
 
-from com.sun.star.lang import XMain
-from com.sun.star.awt.FontWeight import BOLD, NORMAL
-from com.sun.star.beans import PropertyValue
-from com.sun.star.beans.PropertyState import DIRECT_VALUE
-from com.sun.star.lang import Locale
+# ---------------------------------------------------------
+# Setup hacks ...
+# ---------------------------------------------------------
 
 from .CharacterProperties import CharacterProperties as CharProp
 
@@ -39,6 +38,8 @@ sys.path.append(currentDir)
 
 if sys.version >= '3':
    unicode = str
+
+# ---------------------------------------------------------
 
 class Renderer(object):
    def __init__(self):
@@ -240,29 +241,48 @@ class Renderer(object):
             return item['ItemWord']
       return None
 
+   @staticmethod
+   def _get_meta_tag_type(item):
+      if type(item) is not dict \
+            or 'ItemMetaTag' not in item \
+            or 'type' not in item['ItemMetaTag']:
+
+         return None
+
+      return item['ItemMetaTag']['type']
+
    def smartSpace(self):
       punctation = ('.', ',', ';', ':', '!', '?', ')', ']')
       def startsWithPunctation(x):
          for p in punctation:
             if x.startswith(p):
                return True
+
          return False
-      def fun(item):
-         if self._isWord(item) \
-               and not startsWithPunctation(self._getWord(item)) \
-               and not self._cursor.isStartOfParagraph():
+
+      def smart_space_hook(item):
+         word = self._getWord(item)
+
+         if self._isWord(word)\
+            and not starts_with_punctuation(word)\
+            and not (skip_if and skip_if(self._cursor, word)):
 
             self.insertString(' ')
+
          return True
-      self._hookRender = fun
+
+      self._hookRender = smart_space_hook
 
    def needSpace(self):
-       w = self._getWord(self._lastItem)
-       if w != None:
-           if w.endswith('('):
-               return False
-           else:
-               return True
+      w = self._getWord(self._lastItem)
+      if w is not None:
+         return not w.endswith('(')
+
+      type_name = self._get_meta_tag_type(self._lastItem)
+      if type_name not in ["footnote", "imgref", "inlineimage", "ref", "tblref"]:
+         return False
+
+      return True
 
    def render(self, item, lookAhead = None):
       if self._hookRender:
@@ -357,12 +377,19 @@ class Renderer(object):
 
    def setColumnWidths(self, table, widths):
       seps = table.TableColumnSeparators
+      if seps is None:
+         print("Can't set unified column width.")
+         print("Maybe the table contains rows with a changing amount of cells.")
+         return
+
       newseps = []
       lastpos = 0
+
       for (sep, width) in zip(list(seps), widths):
          newseps.append(sep)
          sep.Position = lastpos + width * table.TableColumnRelativeSum
          lastpos = sep.Position
+
       table.TableColumnSeparators = tuple(newseps + list(seps)[len(widths):])
 
    def guessImageSize(self, image):
@@ -552,7 +579,7 @@ class Renderer(object):
          refName = 'X' + refName
       self.knownImageRefs.append(refName)
       self.insertBookmark(refName)
-      self.smartSpace()
+      self.smartSpace(skip_if=lambda _cursor, _word: False)
 
       space = self.needSpace()
       def do_insert_imageref(self):
@@ -584,7 +611,7 @@ class Renderer(object):
          refName = 'X' + refName
       self.knownTableRefs.append(refName)
       self.insertBookmark(refName)
-      self.smartSpace()
+      self.smartSpace(skip_if=lambda _cursor, _word: False)
 
       space = self.needSpace()
       def do_insert_tableref(self):
@@ -621,7 +648,8 @@ class Renderer(object):
       self.doAfterRendering(updateToc)
 
    def insertPageBreak(self):
-      self._cursor.gotoEnd(False)      
+      self.insert_paragraph_character(avoid_empty_paragraph=True)
+      self._cursor.gotoEnd(False)
       self._cursor.BreakType = PAGE_BEFORE
 
    def insertTable(self, tableContent, caption, labelName, style, widths):
@@ -747,9 +775,10 @@ class Renderer(object):
    def insertInlineSourceCode(self, text):
       if self.needSpace():
          self.insertString(' ')
+
       old_name = self.changeCharProperty(CharProp.StyleName, self.STYLE_INLINE_SOURCE_CODE)
       self.render(text)
-      self.smartSpace()
+      self.smartSpace(skip_if=lambda _cursor, word: word == "s")
       self.changeCharProperty(CharProp.StyleName, old_name)
 
    def insertParagraph(self, text):
@@ -757,8 +786,10 @@ class Renderer(object):
       self.insert_paragraph_character(avoid_empty_paragraph=True)
 
    def insert_paragraph_character(self, avoid_empty_paragraph=True):
-       if avoid_empty_paragraph and not self._cursor.isStartOfParagraph():
-           self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+       if not avoid_empty_paragraph \
+          or not self._cursor.isStartOfParagraph():
+
+          self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
 
    def template_width(self):
        """

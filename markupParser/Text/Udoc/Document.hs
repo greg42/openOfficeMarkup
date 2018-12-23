@@ -31,8 +31,6 @@ import           Data.Maybe
 import           Control.Applicative
 import           Data.List
 
-mLookup :: (Monad m) => String -> [(String, b)] -> m b
-mLookup a as = maybe (fail $ "No such element: " ++ a) return (lookup a as)
 
 ------------------------ Data Definitions -----------------------------
 
@@ -50,12 +48,17 @@ data DocumentContainer =   DocumentHeading   Heading [DocumentItem]
                          | DocumentMetaContainer [(String,String)] [DocumentItem]
                          deriving(Show, Eq)
 
+{-| Convert an optional value into the related JSValue. -}
 showJSON' :: (JSON a) => Maybe a -> JSValue
 showJSON' (Just x) = showJSON x
 showJSON' Nothing = JSNull
 
+{-| Lookup the JSValue of a map key that may not exist. -}
+mLookup :: (Monad m) => String -> [(String, b)] -> m b
+mLookup a as = maybe (fail $ "No such element: " ++ a) return (lookup a as)
+
 instance JSON DocumentContainer where
-   showJSON (DocumentHeading heading items) = 
+   showJSON (DocumentHeading heading items) =
       makeObj [  ("type", showJSON "DocumentHeading")
                , ("DocumentHeading", showJSON heading)
                , ("content", showJSON items)
@@ -264,6 +267,7 @@ instance JSON DocumentImage where
 
 ------------------------ Compute the heading level --------------------
 
+{-| Generate a list of zeroes with a specific size. -}
 listOfSize :: Int -> [Int]
 listOfSize n = take n (repeat 0)
 
@@ -305,9 +309,11 @@ computeHeadingNumbers x = evalState (computeHeadingNumbers' x) [[-1]]
 
 ------------------------- Generating a TOC ----------------------------
 
+{-| Increase heading level by one. -}
 headingIndent :: [a] -> Int
 headingIndent l = length l + 1
 
+{-| Convert heading number list representation into a string. .-}
 headingNumber :: [Int] -> String
 headingNumber level = intercalate "." $ map (show . (+1)) level
 
@@ -330,12 +336,14 @@ generateToc document = ItemDocumentContainer $
 
 -------------------------- Filter out certain items -------------------
 
+{-| Returns `[a]` if func(a) == True. -}
 filterHelper :: (a -> Bool) -> a -> [a]
 filterHelper func item =
    if func item
       then [item]
       else []
 
+{-| Returns all elements in the document with func(element) == True. -}
 flatRecurse :: ([DocumentItem] -> [a]) -> DocumentContainer -> [a]
 flatRecurse func (DocumentHeading _ content) =
    func content

@@ -87,11 +87,28 @@ class OpenOfficeBackend(object):
       renderer.init(self._doc, self._textCursor)
       renderer.renderJson(content, *args, **kw)
 
+
    def saveAs(self, outFile):
+      def createProps(**args):
+         props = []
+         for key in args:
+            prop = uno.createUnoStruct('com.sun.star.beans.PropertyValue')
+            prop.Name = key
+            prop.Value = args[key]
+            props.append(prop)
+         return tuple(props)
+
+      # See: https://github.com/LibreOffice/core/blob/master/filter/source/pdf/pdfexport.cxx#L444
       if outFile.upper().endswith('.PDF'):
-         args = (uno.createUnoStruct('com.sun.star.beans.PropertyValue'),)
-         args[0].Name  = 'FilterName'
-         args[0].Value = 'writer_pdf_Export'
+         settings = createProps(
+            ExportBookmarks = True,
+            ExportNotes = True,
+         )
+
+         args = createProps(
+            FilterName="writer_pdf_Export",
+            FilterData=uno.Any("[]com.sun.star.beans.PropertyValue", settings)
+         )
       elif outFile.upper().endswith('.ODT'):
          args = ()
       elif outFile.upper().endswith('.OTS'):
@@ -100,6 +117,7 @@ class OpenOfficeBackend(object):
          args = ()
       else:
          raise RuntimeError('Unknown output file format.')
+
       self._doc.storeToURL(self._convertToURL(os.path.realpath(outFile)), args)
 
    def close(self):

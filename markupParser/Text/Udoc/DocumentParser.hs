@@ -325,6 +325,7 @@ extendedCommandName name = try (do (name', args) <- extendedCommand'
 -- | If the last item in a list of items is a word, this function will remove
 -- the last trailing newline of this word.
 removeTrailingNewline :: [DocumentItem] -> [DocumentItem]
+removeTrailingNewline [] = []
 removeTrailingNewline items =
    init items ++ nl (last items)
    where nl (ItemWord w) = [ItemWord $ stripLastNewline w]
@@ -405,12 +406,7 @@ handleExtendedCommand name args handleSpecialCommand =
                      eatSpaces <- isOptionSet SkipNewlinesAfterSourceOrQuoteBlock
                      when eatSpaces skipEmptyLines
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "blockquote")]) (removeTrailingNewline content)
-      "label"  -> handleLab args
-      "ref"    -> handleRef args
-      "imgref" -> handleImgRef args
-      "tblref" -> handleTblRef args
-      "setpos" -> handleSetPos args
-                     
+ 
       -- If we end up here, we can at least check if the
       -- identified command is some special-purpose
       -- command
@@ -780,7 +776,7 @@ fencedCodeBlock = do
     fencedCodeBlockBegin
     language <- many $ noneOf "\n"
     newline
-    lines <- many1 $ do
+    lines <- many $ do
        notFollowedBy $ string "```"
        thisLine <- many $ noneOf "\n"
        newline
