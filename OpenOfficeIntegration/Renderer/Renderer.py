@@ -251,10 +251,10 @@ class Renderer(object):
 
       return item['ItemMetaTag']['type']
 
-   def smartSpace(self):
-      punctation = ('.', ',', ';', ':', '!', '?', ')', ']')
+   def smartSpace(self, skip_if=lambda cursor, word: cursor.isStartOfParagraph()):
+      punctuation = ('.', ',', ';', ':', '!', '?', ')', ']')
       def starts_with_punctuation(x):
-         for p in punctation:
+         for p in punctuation:
             if x.startswith(p):
                return True
 
