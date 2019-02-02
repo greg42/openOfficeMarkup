@@ -348,7 +348,7 @@ class Renderer(object):
       self._cursor.ParaStyleName = newStyle
       return old
 
-   def changeCharProperty(self, property_type: CharProp, value):
+   def changeCharProperty(self, property_type, value):
       property_name = property_type.value
 
       old = self._cursor.getPropertyValue(property_name)
