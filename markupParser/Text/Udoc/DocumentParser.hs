@@ -437,6 +437,7 @@ table' :: Bool -> [[String]] -> IParse [[String]]
 table' ml table = do
    skipEmptyLines
    endOr table $ do
+      lookAhead anyToken
       l <- oneTableLine
       let (newTable, newMl) = tableAppend ml l table
       table' newMl newTable
