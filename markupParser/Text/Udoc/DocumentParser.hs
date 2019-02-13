@@ -30,6 +30,7 @@ import           Control.Monad
 import           Control.Monad.State
 import           Text.JSON
 import           Text.Udoc.Document
+import           Data.Char
 import           Data.Maybe
 import           Data.Functor.Identity
 import           Text.Parsec.Indent
@@ -328,14 +329,8 @@ removeTrailingNewline :: [DocumentItem] -> [DocumentItem]
 removeTrailingNewline [] = []
 removeTrailingNewline items =
    init items ++ nl (last items)
-   where nl (ItemWord w) = [ItemWord $ stripLastNewline w]
+   where nl (ItemWord w) = [ItemWord $ dropWhileEnd isSpace w]
          nl x = [x]
-
--- | This function removes the last trailing newline character from a string.
-stripLastNewline :: String -> String
-stripLastNewline s
-   | last s == '\n' = init s
-   | otherwise = s
 
 -- | Handle an extended command. This is called once a command
 -- has been found. It's responsible for returning the appropriate
