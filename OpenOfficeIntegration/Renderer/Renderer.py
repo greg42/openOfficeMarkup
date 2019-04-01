@@ -276,7 +276,7 @@ class Renderer(object):
    def needSpace(self):
       w = self._getWord(self._lastItem)
       if w is not None:
-         return not w.endswith('(')
+         return not (w.endswith('(') or w.endswith('['))
 
       type_name = self._get_meta_tag_type(self._lastItem)
       if type_name not in ["footnote", "imgref", "inlineimage", "ref", "tblref"]:
