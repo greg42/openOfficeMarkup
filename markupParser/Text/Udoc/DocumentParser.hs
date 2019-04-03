@@ -45,6 +45,7 @@ data SyntaxOption = SkipNewlinesAfterUlist
                   | SkipNewlinesAfterSourceOrQuoteBlock
                   | BlockQuotes
                   | FencedCodeBlocks
+                  | NewStyleOlist
                   deriving (Eq, Read, Show)
 
 type SyntaxFlavor = [SyntaxOption]
@@ -697,6 +698,25 @@ uList hsp = do
 -- and the item's number.
 oListItemBegin :: IParse (Int, String)
 oListItemBegin = do
+   newStyle <- isOptionSet NewStyleOlist
+   if newStyle
+      then newOlistItemBegin
+      else oldOlistItemBegin
+
+-- | The new version of ordered lists start with dotted numbers followed
+-- by either a dot, the sequence .) or the ) character.
+newOlistItemBegin :: IParse (Int, String)
+newOlistItemBegin = do
+   i <- many $ char ' '
+   string "**"
+   number <- dottedNumber
+   spaces
+   return ((length i), number)
+
+-- | The old version of ordered lists start with dotted numbers followed
+-- by either a dot, the sequence .) or the ) character.
+oldOlistItemBegin :: IParse (Int, String)
+oldOlistItemBegin = do
    i <- many $ char ' '
    number <- dottedNumber
    trailer <- ( (try $ string ".)") <|> string "." <|> string ")" <?> "a number in an enumerated list")
