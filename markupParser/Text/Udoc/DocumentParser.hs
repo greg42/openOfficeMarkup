@@ -45,7 +45,7 @@ data SyntaxOption = SkipNewlinesAfterUlist
                   | SkipNewlinesAfterSourceOrQuoteBlock
                   | BlockQuotes
                   | FencedCodeBlocks
-                  deriving (Eq)
+                  deriving (Eq, Read, Show)
 
 type SyntaxFlavor = [SyntaxOption]
 
@@ -293,6 +293,16 @@ handleSetPos args = do
                             Nothing -> return ()
           modifySourcePos f = getPosition >>= (setPosition . f)
 
+-- | Handles the flavor command, which can be used to activate markup
+-- extensions.
+handleFlavor :: [(String, String)] -> IParse DocumentItem
+handleFlavor args = do
+    tag <- handleMetaTag "flavor" [("name", "name")] [] args
+    case (lookup "name" args >>= readMaybe) of
+       Nothing -> fail $ "Cannot parse udoc extension name " ++ (show $ lookup "name" args)
+       Just e  -> PP.modifyState $ \x -> x { parserStateFlavor = (e:parserStateFlavor x) }
+    return tag
+
 -- | Creates an ItemDocumentMetaContainer from the container type, its
 -- properties and its content.
 createMetaContainer ::    String -- ^ The container type
@@ -401,6 +411,7 @@ handleExtendedCommand name args handleSpecialCommand =
                      eatSpaces <- isOptionSet SkipNewlinesAfterSourceOrQuoteBlock
                      when eatSpaces skipEmptyLines
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "blockquote")]) (removeTrailingNewline content)
+      "flavor" -> handleFlavor args
  
       -- If we end up here, we can at least check if the
       -- identified command is some special-purpose

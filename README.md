@@ -66,6 +66,8 @@ here | *comes
   character. Tables can have a label and a caption.
 * [tblref label=tbl] references a table (the referenced table obviously
   has to have a caption and a label).
+* [flavor name=BlockQuotes] enables the BlockQuotes parsing extension
+  (check the source code for additional extensions)
 ~~~
 
 This language is first parsed by small parser built with
