@@ -21,7 +21,7 @@ module Text.Udoc.Document
    (DocumentItem(..), OListItem(..), UListItem(..), Heading(..),
     DocumentContainer(..), DocumentImage(..),
     computeHeadingNumbers, generateToc,
-    filterItems, transformDocument)
+    filterItems, transformDocument, extractWords)
 
 where
 
@@ -420,4 +420,20 @@ transformDocument func (item:items) =
                                                      else func item
                                   in (container : transformDocument func items)
       _ -> (func item : transformDocument func items)
+
+-- | Extracts the textual content from a udoc document
+extractWords :: [DocumentItem] -> String
+extractWords = intercalate " " . catMaybes . map collectWords
+    where collectWords (ItemWord x) = Just x
+          collectWords (ItemDocumentContainer (DocumentHeading _ dis)) = Just $ extractWords dis
+          collectWords (ItemDocumentContainer (DocumentBoldFace dis))  = Just $ extractWords dis
+          collectWords (ItemDocumentContainer (DocumentParagraph dis)) = Just $ extractWords dis
+          collectWords (ItemDocumentContainer (DocumentOList oli)) = Just $ intercalate "\n" $ map (extractWords . snd) oli
+          collectWords (ItemDocumentContainer (DocumentUList uli)) = Just $ intercalate "\n" $ map (extractWords . snd) uli
+          collectWords (ItemDocumentContainer (DocumentTableRow dis)) = Just $ intercalate " " $ map extractWords dis
+          collectWords (ItemDocumentContainer (DocumentTable _ _ _ cs)) = Just $ extractWords $ map ItemDocumentContainer cs
+          collectWords (ItemDocumentContainer (DocumentMetaContainer _ dis)) = Just $ extractWords dis
+          collectWords (ItemImage x)   = Nothing
+          collectWords ItemLinebreak   = Just "\n"
+          collectWords (ItemMetaTag _) = Nothing
 
