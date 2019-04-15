@@ -58,6 +58,7 @@ class Renderer(object):
       self._lastItem = None
       self._currentLanguage = None
       self._inSource = False
+      self.toc = None
 
    def init(self, document, cursor):
       self._cursor = cursor
@@ -326,9 +327,13 @@ class Renderer(object):
    # chain.
    def renderJson(self, encodedDoc):
       self.render(json.loads(encodedDoc))
+
       for fun in self.afterRendering:
          fun(self)
- 
+
+      if self.has_toc():
+         self.toc.update()
+
    def doAfterRendering(self, f):
       self.afterRendering.append(f)
 
@@ -643,9 +648,8 @@ class Renderer(object):
       index.Title = self.i18n['toc']
       index.CreateFromOutline = True
       self._document.Text.insertTextContent(self._cursor, index, False)
-      def updateToc(self):
-         index.update()
-      self.doAfterRendering(updateToc)
+
+      self.toc = index
 
    def insertPageBreak(self):
       self.insert_paragraph_character(avoid_empty_paragraph=True)
@@ -808,6 +812,9 @@ class Renderer(object):
        for the content area of your template.
        """
        return 215
+
+   def has_toc(self):
+       return self.toc is not None
 
 class VanillaRenderer(Renderer):
    def __init__(self):
