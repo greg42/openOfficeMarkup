@@ -708,10 +708,9 @@ oListItemBegin = do
 newOlistItemBegin :: IParse (Int, String)
 newOlistItemBegin = do
    i <- many $ char ' '
-   string "**"
-   number <- dottedNumber
+   string "+"
    spaces
-   return ((length i), number)
+   return ((length i), "0")
 
 -- | The old version of ordered lists start with dotted numbers followed
 -- by either a dot, the sequence .) or the ) character.
