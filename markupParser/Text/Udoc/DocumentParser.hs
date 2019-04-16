@@ -483,14 +483,14 @@ paragraphWithout ::    IParse () -- ^ The parser that may not succeed
                     -> HSP -- ^ The supported special commands
                     -> IParse DocumentItem
 paragraphWithout x hsp = do 
-   lines <- many1 $ (  notFollowedBy x >> 
-                       (
-                             (do x <- try $ line hsp; optional newline; return x)
-                         <|> (do x <- try $ extendedCommand hsp; optional newline; return [x])
-                         <|> (do x <- try $ uList hsp; return [x])
-                         <|> (do x <- try $ oList hsp; return [x])
-                       )
-                    )
+   lines <- many1 (  notFollowedBy x >> 
+                     (
+                           (do x <- try $ line hsp; optional newline; return x)
+                       <|> (do x <- try $ extendedCommand hsp; optional newline; return [x])
+                       <|> (do x <- try $ uList hsp; return [x])
+                       <|> (do x <- try $ oList hsp; return [x])
+                     )
+                  ) <?> "a properly indented paragraph, command or list"
    skipEmptyLines
    return $ ItemDocumentContainer $ DocumentParagraph $ concat lines
 
