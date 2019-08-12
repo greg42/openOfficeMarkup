@@ -24,12 +24,14 @@ module Text.Udoc.DocumentParser where
 
 import           Text.ParserCombinators.Parsec hiding (State, try, spaces)
 import qualified Text.ParserCombinators.Parsec as P
+import qualified Text.ParserCombinators.Parsec.Error as PE
 import           Text.Parsec.Prim (parserZero, runParserT, ParsecT, try)
 import qualified Text.Parsec.Prim as PP
 import           Control.Monad
 import           Control.Monad.State
 import           Text.JSON
 import           Text.Udoc.Document
+import           Data.Either
 import           Data.Char
 import           Data.Maybe
 import           Data.Functor.Identity
@@ -86,11 +88,48 @@ type Command = (String, [(String, String)])
 parseDocument :: ParserState -> HSP -> String -> Either ParseError ([DocumentItem], ParserState)
 parseDocument initialState hsp input = 
    myParse id parser input
-   where myParse f p src = fst $ flip runState (f $ initialPos "") $ 
-                                      runParserT p initialState "" src
+   where myParse f p src = fst
+                           $ flip runState (f $ initialPos "")
+                           $ runParserT p initialState "" src
          parser = do items <- documentItems hsp
                      s     <- P.getState
                      return (items, s)
+
+-- | Parse an inline udoc document and return the document items (e.g. to
+-- | parse table cells). In case of an error use the given initial source
+-- | position as error position.
+-- |
+-- | TODO: As soon as its possible to determine the initial position of
+-- |       each table cell it would be nice to combine the initial
+-- |       position and the error position to determine the real
+-- |       position.
+parseInlineDocument :: ParserState -> SourcePos -> HSP -> String -> Either ParseError ([DocumentItem], ParserState)
+parseInlineDocument initialState currentPosition handleSpecialCommand source =
+  fixPosition $ fst $ runState runParser (initialPos fileName)
+  where
+    fileName :: String
+    fileName = sourceName currentPosition
+
+    runParser :: State SourcePos (Either ParseError ([DocumentItem], ParserState))
+    runParser = runParserT parser initialState fileName source
+
+    parser :: IParse ([DocumentItem], ParserState)
+    parser = do
+      itemHandler <- documentItems handleSpecialCommand
+      currentState <- P.getState
+      return (itemHandler, currentState)
+
+    fixPosition :: Either ParseError ([DocumentItem], ParserState) -> Either ParseError ([DocumentItem], ParserState)
+    fixPosition result = case result of
+      Left error -> Left $ PE.setErrorPos (updateErrorPos currentPosition (PE.errorPos error)) error
+      right -> right
+
+    -- | Use the position of the last parsed parent document character as new
+    -- | error position.
+    updateErrorPos :: SourcePos -> SourcePos -> SourcePos
+    updateErrorPos initialPos errorPos =
+      setSourceColumn (setSourceLine errorPos $ (sourceLine initialPos)) (sourceColumn initialPos)
+
 
 -- | Skips zero or more space or tab characters.
 spaces :: IParse ()
@@ -375,14 +414,20 @@ handleExtendedCommand name args handleSpecialCommand =
                                      Nothing -> fail "Cannot parse table widths argument."
                                      Just w -> return w
                      skipEmptyLines
-                     t <- table
+
+                     -- We need the position of the first row  as `table` is
+                     -- going to parse the whole table at once.
+                     currentPosition <- P.getPosition
+                     currentState <- P.getState
+
+                     rows <- table
+
                      -- We simply apply our document parser to each table
                      -- cell.
-                     rows <- forM t $ \row -> do
+                     rows <- forM rows $ \row -> do
                          cells <- forM row $ \cell -> do
-                            s <- P.getState
-                            case parseDocument s handleSpecialCommand cell of
-                               Left err -> error $ show err
+                            case parseInlineDocument currentState currentPosition handleSpecialCommand cell of
+                               Left err -> error $ "Error while parsing the table which is located at " ++ (show currentPosition) ++ ".\n\n" ++ (show err)
                                Right (inner, newS) -> do P.setState newS
                                                          return $ concat $ map stripOuterParagraph inner
                          return $ DocumentTableRow cells
