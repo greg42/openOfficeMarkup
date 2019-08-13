@@ -14,6 +14,7 @@ import json
 import platform
 import time
 
+from com.sun.star.awt.FontSlant import ITALIC, NONE
 from com.sun.star.awt.FontWeight import BOLD, NORMAL
 from com.sun.star.lang import Locale
 from com.sun.star.style.BreakType import PAGE_AFTER,PAGE_BEFORE
@@ -107,6 +108,13 @@ class Renderer(object):
       if not self._inSource:
           self.smartSpace()
 
+   def renderItalicFace(self, items):
+      if self.needSpace():
+         self.insertString(' ')
+
+      self.insertItalicFace(items)
+      self.smartSpace()
+
    def renderParagraph(self, items):
       self.insertParagraph(items)
 
@@ -185,6 +193,8 @@ class Renderer(object):
                             container['content'])
       elif containerType == 'DocumentBoldFace':
          self.renderBoldFace(container['content'])
+      elif containerType == 'DocumentItalicFace':
+         self.renderItalicFace(container['content'])
       elif containerType == 'DocumentParagraph':
          self.renderParagraph(container['content'])
       elif containerType == 'DocumentTable':
@@ -740,6 +750,11 @@ class Renderer(object):
       old_cw = self.changeCharProperty(CharProp.Weight, BOLD)
       self.render(text)
       self.changeCharProperty(CharProp.Weight, old_cw)
+
+   def insertItalicFace(self, text):
+      old_cw = self.changeCharProperty(CharProp.Posture, ITALIC)
+      self.render(text)
+      self.changeCharProperty(CharProp.Posture, old_cw)
 
    def insertSourceCode(self, text):
       self.insert_paragraph_character(avoid_empty_paragraph=True)
