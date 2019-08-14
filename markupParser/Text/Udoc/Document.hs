@@ -246,15 +246,16 @@ instance JSON Heading where
 data DocumentImage = Image {
                         imageFilename :: String -- ^ The file name of the image
                       , imageCaption  :: String -- ^ The image's caption
-                      , imageLabel    :: String -- ^ A label for referencing the
-                                                -- image
+                      , imageLabel    :: String -- ^ A label for referencing the image
+                      , imageScaling  :: String -- ^ An expected scaling factor.
                      } deriving(Show, Eq)
 
 instance JSON DocumentImage where
-   showJSON (Image filename caption label) =
+   showJSON (Image filename caption label scaling) =
       makeObj [  ("imageFilename", showJSON filename)
                , ("imageCaption" , showJSON caption)
                , ("imageLabel"   , showJSON label)
+               , ("imageScaling" , showJSON scaling)
               ]
 
    readJSON (JSObject obj) = let
@@ -263,7 +264,8 @@ instance JSON DocumentImage where
       filename <- mLookup "imageFilename" jsonObjAssoc >>= readJSON
       caption  <- mLookup "imageCaption"  jsonObjAssoc >>= readJSON
       label    <- mLookup "imageLabel"    jsonObjAssoc >>= readJSON
-      return $ Image filename caption label
+      scaling  <- mLookup "imageScaling"       jsonObjAssoc >>= readJSON
+      return $ Image filename caption label scaling
 
 ------------------------ Compute the heading level --------------------
 

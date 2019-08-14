@@ -200,8 +200,12 @@ class Renderer(object):
          raise RuntimeError('Unsupported container type: %s' % containerType)
 
    def renderImage(self, img):
-      self.insertImage(img['imageFilename'], img['imageCaption'],
-                       img['imageLabel'])
+      file_name = img['imageFilename']
+      caption = img['imageCaption']
+      label = img['imageLabel']
+      scaling = img['imageScaling']
+
+      self.insertImage(file_name, caption, label, scaling)
 
    def handleCustomMetaTag(self, tag):
       raise NotImplementedError
@@ -436,8 +440,8 @@ class Renderer(object):
       return field
 
    # Provide sizes in 1/100 mm if you need to.
-   def _insertImage(self, path, inline = False, width = None, 
-                    height = None, scale = None, vOffset = None):
+   def _insertImage( self, path, inline=False, width=None,
+                    height=None, scale=1.0, v_offset=None):
 
       if platform.platform().lower().startswith('win'):
          url = 'file:///' + os.path.realpath(path).replace(':', '|')
@@ -466,14 +470,15 @@ class Renderer(object):
       time.sleep(0.1)
 
       # Now we can correctly determine the image size
-      if not width and not height and not scale:
+      if not width and not height:
          size = self.guessImageSize(graph)
          if size:
             gsize = graph.Size
-            gsize.Height = size.Height
-            gsize.Width = size.Width
+            gsize.Width = int(size.Width * float(scale))
+            gsize.Height = int(size.Height * float(scale))
             graph.Size = gsize
-      elif not scale:
+
+      else:
          gsize = graph.Size
          oldW, oldH = gsize.Width, gsize.Height
          if width:
@@ -485,34 +490,28 @@ class Renderer(object):
             if not width:
                gsize.Width = int ( (float(height)/oldH) * oldW)
          graph.Size = gsize
-      else:
-         gsize = graph.Size
-         w, h = gsize.Width, gsize.Height
-         gsize.Width = int(w * float(scale))
-         gsize.Height = int(h * float(scale))
-         graph.Size = gsize
 
       # Finally, we can use the internal URL, so that the image will
       # actually be embedded into the ODT. Like.. WTF?
       graph.GraphicURL = internalUrl
    
-      if vOffset and vOffset != 0:
+      if v_offset and v_offset != 0:
          graph.VertOrient = 0
-         graph.VertOrientPosition = -graph.Size.Height + float(vOffset)
+         graph.VertOrientPosition = -graph.Size.Height + float(v_offset)
 
       return graph
 
    def insertInlineImage(self, path, vOffset):
       if self.needSpace():
          self.insertString(' ')
-      self._insertImage(path, inline = True, scale = 0.15, vOffset = vOffset)
+      self._insertImage(path, inline=True, scale=0.15, v_offset=vOffset)
       self.smartSpace()
 
-   def insertImage(self, path, caption, labelName):
+   def insertImage(self, path, caption, label_name, scaling):
       CAPTION_TITLE=self.i18n['figure']
 
       self.insert_paragraph_character(avoid_empty_paragraph=True)
-      self._insertImage(path)
+      self._insertImage(path, scale=scaling)
 
       oldStyle = self.changeParaStyle(self.STYLE_FIGURE_CAPTION)
       field = self.createSequenceField(CAPTION_TITLE)
@@ -527,7 +526,7 @@ class Renderer(object):
       # Remember the number of the current image, so that we'll later
       # be able to reference it properly.
       cnt = len(self.Images)
-      self.Images[labelName] = cnt
+      self.Images[label_name] = cnt
 
    def insertUListItem(self, content):
       self.insert_paragraph_character(avoid_empty_paragraph=True)
