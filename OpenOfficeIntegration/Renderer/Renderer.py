@@ -16,13 +16,14 @@ import time
 
 from com.sun.star.awt.FontWeight import BOLD, NORMAL
 from com.sun.star.lang import Locale
-from com.sun.star.style.BreakType import PAGE_AFTER,PAGE_BEFORE
+from com.sun.star.style.BreakType import PAGE_AFTER, PAGE_BEFORE
 from com.sun.star.style.NumberingType import ARABIC
 from com.sun.star.text.ControlCharacter import PARAGRAPH_BREAK
 from com.sun.star.text.TextContentAnchorType import AS_CHARACTER
 from com.sun.star.text.ReferenceFieldPart import CHAPTER, CATEGORY_AND_NUMBER
-from com.sun.star.text.ReferenceFieldSource import BOOKMARK,REFERENCE_MARK,SEQUENCE_FIELD
+from com.sun.star.text.ReferenceFieldSource import BOOKMARK, REFERENCE_MARK, SEQUENCE_FIELD
 from com.sun.star.text.SetVariableType import SEQUENCE
+from com.sun.star.text.WrapTextMode import NONE, DYNAMIC, PARALLEL, LEFT, RIGHT
 
 # ---------------------------------------------------------
 # Setup hacks ...
@@ -204,8 +205,9 @@ class Renderer(object):
       caption = img['imageCaption']
       label = img['imageLabel']
       scaling = img['imageScaling']
+      alignment = img['imageAlignment']
 
-      self.insertImage(file_name, caption, label, scaling)
+      self.insertImage(file_name, caption, label, scaling, alignment)
 
    def handleCustomMetaTag(self, tag):
       raise NotImplementedError
@@ -440,8 +442,9 @@ class Renderer(object):
       return field
 
    # Provide sizes in 1/100 mm if you need to.
-   def _insertImage( self, path, inline=False, width=None,
-                    height=None, scale=1.0, v_offset=None):
+   def _insertImage(self, path, inline=False, width=None,
+                    height=None, scale=1.0, v_offset=None,
+                    align="center"):
 
       if platform.platform().lower().startswith('win'):
          url = 'file:///' + os.path.realpath(path).replace(':', '|')
@@ -455,13 +458,25 @@ class Renderer(object):
          internalUrl = bitmaps.getByName(url)
       except:
          bitmaps.insertByName(url, url) 
-      internalUrl = bitmaps.getByName(url)
+         internalUrl = bitmaps.getByName(url)
 
       # Now insert the image, *NOT* using the source from the internal
       # bitmap table, but instead using the external URL.
       graph = self._realDocument.createInstance("com.sun.star.text.TextGraphicObject")
+
+      if align == "left":
+         graph.HoriOrient = 0
+         graph.RightMargin = 300
+         graph.TextWrap = RIGHT
+
+      if align == "right":
+         graph.HoriOrient = 1
+         graph.LeftMargin = 300
+         graph.TextWrap = LEFT
+
       if inline:
          graph.AnchorType = AS_CHARACTER
+
       self._document.Text.insertTextContent(self._cursor, graph, False)
 
       graph.GraphicURL = url
@@ -507,11 +522,11 @@ class Renderer(object):
       self._insertImage(path, inline=True, scale=0.15, v_offset=vOffset)
       self.smartSpace()
 
-   def insertImage(self, path, caption, label_name, scaling):
+   def insertImage(self, path, caption, label_name, scaling, alignment):
       CAPTION_TITLE=self.i18n['figure']
 
       self.insert_paragraph_character(avoid_empty_paragraph=True)
-      self._insertImage(path, scale=scaling)
+      graph = self._insertImage(path, scale=scaling, align=alignment)
 
       oldStyle = self.changeParaStyle(self.STYLE_FIGURE_CAPTION)
       field = self.createSequenceField(CAPTION_TITLE)

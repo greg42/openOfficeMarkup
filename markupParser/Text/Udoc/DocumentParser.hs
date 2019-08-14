@@ -404,12 +404,13 @@ handleExtendedCommand name args handleSpecialCommand =
       "pb"     -> return $ ItemMetaTag [("type", "pagebreak")]
 
       "image"  -> do let scaling = fromMaybe "1" $ lookup "scaling" args
+                         alignment = fromMaybe "center" $ lookup "align" args
                      label   <- mLookup "label"   args "Missing label in image tag"
                      caption <- mLookup "caption" args "Missing caption in image tag"
                      path    <- mLookup "path"    args "Missing path in image tag"
                      eatSpaces <- isOptionSet SkipNewlinesAfterImage
                      when eatSpaces skipEmptyLines 
-                     return $ ItemImage $ Image path caption label scaling
+                     return $ ItemImage $ Image path caption label scaling alignment
 
       "inlineImage" -> do let vOffset = fromMaybe "0" $ lookup "vOffset" args
                           path <- mLookup "path" args "Missing path in inlineImage tag"
