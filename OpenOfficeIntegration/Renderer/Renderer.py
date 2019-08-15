@@ -524,19 +524,51 @@ class Renderer(object):
 
    def insertImage(self, path, caption, label_name, scaling, alignment):
       CAPTION_TITLE=self.i18n['figure']
+      field = self.createSequenceField(CAPTION_TITLE)
+
+      # create a frame to group image and caption
+      frame = self._document.createInstance("com.sun.star.text.TextFrame")
+      self._document.Text.insertTextContent(self._cursor, frame, False)
+
+      # change active context
+      cursor_in_frame = frame.Text.createTextCursor()
+      oldDoc = self._document
+      oldCur = self._cursor
+
+      self._cursor = cursor_in_frame
+      self._document = frame
 
       self.insert_paragraph_character(avoid_empty_paragraph=True)
       graph = self._insertImage(path, scale=scaling, align=alignment)
 
-      oldStyle = self.changeParaStyle(self.STYLE_FIGURE_CAPTION)
-      field = self.createSequenceField(CAPTION_TITLE)
+      cursor_in_frame.ParaStyleName = self.STYLE_FIGURE_CAPTION
+
       self.insertString(CAPTION_TITLE + ' ')
-      self._document.Text.insertTextContent(self._cursor, field, False)
+      self._document.insertTextContent(cursor_in_frame, field, False)
       self.insertString(' - ')
       self.insertString(caption)
 
-      self.insert_paragraph_character(avoid_empty_paragraph=True)
-      self.changeParaStyle(oldStyle)
+      # restore previous context
+      self._document = oldDoc
+      self._cursor = oldCur
+
+      # style frame to match inner image and disable borders
+      frame.Size = graph.Size
+      frame.TextWrap = graph.TextWrap
+      frame.Surround = graph.TextWrap
+      frame.BorderDistance = 0
+      frame.LeftMargin = graph.LeftMargin
+      frame.RightMargin = graph.RightMargin
+      frame.BottomMargin = 150
+      frame.HoriOrient = graph.HoriOrient
+      frame.HoriOrientPosition = graph.HoriOrientPosition
+      frame.VertOrient = graph.VertOrient
+      frame.VertOrientPosition = graph.VertOrientPosition
+
+      border_line = frame.getPropertyValue("LeftBorder")
+      border_line.OuterLineWidth = 0
+      border_line.LineWidth = 0
+      frame.setPropertyValue("LineStyle", border_line)
 
       # Remember the number of the current image, so that we'll later
       # be able to reference it properly.
