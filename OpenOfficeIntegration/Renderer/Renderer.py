@@ -409,7 +409,7 @@ class Renderer(object):
       maxHeight = (self.template_height() - 20) * 100  # Template maximum height in millimeters is 236.
                                                        # Let's save some margin.
 
-      size = image.Size
+      size = image.ActualSize
       if size.Height == 0 or size.Width == 0:
          size.Height = image.SizePixel.Height * 2540.0 * TwipsPerPixelY() / 1440
          size.Width  = image.SizePixel.Width  * 2540.0 * TwipsPerPixelX() / 1440
