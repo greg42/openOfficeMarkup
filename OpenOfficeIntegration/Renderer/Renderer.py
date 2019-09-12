@@ -538,7 +538,6 @@ class Renderer(object):
       self._cursor = cursor_in_frame
       self._document = frame
 
-      self.insert_paragraph_character(avoid_empty_paragraph=True)
       graph = self._insertImage(path, scale=scaling, align=alignment)
 
       cursor_in_frame.ParaStyleName = self.STYLE_FIGURE_CAPTION
@@ -564,6 +563,9 @@ class Renderer(object):
       frame.HoriOrientPosition = graph.HoriOrientPosition
       frame.VertOrient = graph.VertOrient
       frame.VertOrientPosition = graph.VertOrientPosition
+
+      if alignment == "center":
+          frame.AnchorType = AS_CHARACTER
 
       border_line = frame.getPropertyValue("LeftBorder")
       border_line.OuterLineWidth = 0
