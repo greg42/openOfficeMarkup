@@ -700,7 +700,7 @@ class Renderer(object):
       self.toc = index
 
    def insertPageBreak(self):
-      self.insert_paragraph_character(avoid_empty_paragraph=True)
+      self.insert_paragraph_character(avoid_empty_paragraph=False)
       self._cursor.gotoEnd(False)
       self._cursor.BreakType = PAGE_BEFORE
 
