@@ -24,6 +24,7 @@ from com.sun.star.text.ReferenceFieldPart import CHAPTER, CATEGORY_AND_NUMBER
 from com.sun.star.text.ReferenceFieldSource import BOOKMARK, REFERENCE_MARK, SEQUENCE_FIELD
 from com.sun.star.text.SetVariableType import SEQUENCE
 from com.sun.star.text.WrapTextMode import NONE, DYNAMIC, PARALLEL, LEFT, RIGHT
+from com.sun.star.style.ParagraphAdjust import CENTER, LEFT
 
 # ---------------------------------------------------------
 # Setup hacks ...
@@ -526,6 +527,9 @@ class Renderer(object):
       CAPTION_TITLE=self.i18n['figure']
       field = self.createSequenceField(CAPTION_TITLE)
 
+      if alignment == "center":
+          self.insert_paragraph_character(avoid_empty_paragraph=True)
+
       # create a frame to group image and caption
       frame = self._document.createInstance("com.sun.star.text.TextFrame")
       self._document.Text.insertTextContent(self._cursor, frame, False)
@@ -564,13 +568,18 @@ class Renderer(object):
       frame.VertOrient = graph.VertOrient
       frame.VertOrientPosition = graph.VertOrientPosition
 
-      if alignment == "center":
-          frame.AnchorType = AS_CHARACTER
-
       border_line = frame.getPropertyValue("LeftBorder")
       border_line.OuterLineWidth = 0
       border_line.LineWidth = 0
       frame.setPropertyValue("LineStyle", border_line)
+
+      if alignment == "center":
+          frame.AnchorType = AS_CHARACTER
+
+          previous_adjustment = self._cursor.ParaAdjust
+          self._cursor.ParaAdjust = CENTER
+          self.insert_paragraph_character(avoid_empty_paragraph=False)
+          self._cursor.ParaAdjust = previous_adjustment
 
       # Remember the number of the current image, so that we'll later
       # be able to reference it properly.
