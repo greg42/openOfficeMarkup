@@ -24,7 +24,7 @@ from com.sun.star.text.ReferenceFieldPart import CHAPTER, CATEGORY_AND_NUMBER
 from com.sun.star.text.ReferenceFieldSource import BOOKMARK, REFERENCE_MARK, SEQUENCE_FIELD
 from com.sun.star.text.SetVariableType import SEQUENCE
 from com.sun.star.text.WrapTextMode import NONE, DYNAMIC, PARALLEL, LEFT, RIGHT
-from com.sun.star.style.ParagraphAdjust import CENTER, LEFT
+from com.sun.star.style.ParagraphAdjust import CENTER
 
 # ---------------------------------------------------------
 # Setup hacks ...
