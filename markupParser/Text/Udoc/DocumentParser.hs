@@ -439,8 +439,8 @@ handleExtendedCommand name args handleSpecialCommand =
                                   x   -> x
                      source <- manyTill inlineVerbatimContent (char chr >> spaces)
                      return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineSource")]) source
-      "_q"     -> do text <- manyTill inlineQuotedContent (char '"' >> spaces)
-                     return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineQuote")]) text
+
+      "_q"     -> handleInlineQuote handleSpecialCommand
       "source" -> do let language = fromMaybe "" $ lookup "language" args
                      skipEmptyLines
                      source <- manyTill (verbatimContent "[/source]") (extendedCommandName "/source")
@@ -621,13 +621,15 @@ inlineVerbatimContent = do
 
 -- | Contents of the inline quoted text container - may basically be everything
 -- besides ", which needs to be escaped.
-inlineQuotedContent :: IParse DocumentItem
-inlineQuotedContent = do 
-    result <- word
-    spaces
-    skipMany $ char '\n'
-    spaces
-    return result
+handleInlineQuote :: HSP -> IParse DocumentItem
+handleInlineQuote hsp = do
+   text <- containerContentsUntil closingQuote hsp
+   return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineQuote")]) text
+   where
+      closingQuote :: IParse ()
+      closingQuote = do
+         char '"'
+         return ()
 
 -- | The start of the regular line of text. This is only a lookahead, which
 -- will not match lists or headings (or block quotes if this feature is
