@@ -276,6 +276,10 @@ getArgumentsOrFail mandArgs optArgs aList f =
                         " but only got " ++ (show $ map fst aList)
       Just m'  -> return $ f m' opt
 
+{-| Lookup a required tag attribute that may not exist. -}
+mLookup :: (Show a, Monad m, Eq a) => a -> [(a , b)] -> String -> m b
+mLookup k al error_message = maybe (fail error_message) return $ lookup k al
+
 -- | Creates an ItemMetaTag from the following data: a tag name, the list
 -- of mandatory properties and the list of optional properties.
 createMetaTag ::    String -- ^ The name of the tag type
@@ -401,15 +405,24 @@ handleExtendedCommand name args handleSpecialCommand =
       "br"     -> return $ ItemLinebreak
       "meta"   -> return $ ItemMetaTag args
       "pb"     -> return $ ItemMetaTag [("type", "pagebreak")]
-      "image"  -> do label   <- mlookup "label"   args "Missing label in image tag"
-                     caption <- mlookup "caption" args "Missing caption in image tag"
-                     path    <- mlookup "path"    args "Missing path in image tag"
-                     eatSpaces <- isOptionSet SkipNewlinesAfterImage 
+
+      "image"  -> do let scaling = fromMaybe "1" $ lookup "scaling" args
+                         alignment = fromMaybe "center" $ lookup "align" args
+                     label   <- mLookup "label"   args "Missing label in image tag"
+                     caption <- mLookup "caption" args "Missing caption in image tag"
+                     path    <- mLookup "path"    args "Missing path in image tag"
+                     eatSpaces <- isOptionSet SkipNewlinesAfterImage
                      when eatSpaces skipEmptyLines 
-                     return $ ItemImage $ Image path caption label
-                     where mlookup k a errmsg = case lookup k a of
-                                                   Nothing -> fail errmsg
-                                                   Just val -> return val
+                     return $ ItemImage $ Image path caption label scaling alignment
+
+      "inlineImage" -> do let vOffset = fromMaybe "0" $ lookup "vOffset" args
+                          path <- mLookup "path" args "Missing path in inlineImage tag"
+                          return $ ItemMetaTag (
+                            [ ("type", "inlineImage")
+                            , ("path", path)
+                            , ("vOffset", vOffset)
+                            ])
+
       "table"  -> do let mCL = ((,)) <$> lookup "caption" args <*> lookup "label" args
                      let style = fromMaybe "head_top" $ lookup "style" args
                      let mWidths = sequence $ map readMaybe $ map (filter (/= ' ')) $ split ',' $ fromMaybe "" $ lookup "widths" args

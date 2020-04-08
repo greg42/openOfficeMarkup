@@ -17,13 +17,15 @@ import time
 from com.sun.star.awt.FontSlant import ITALIC, NONE
 from com.sun.star.awt.FontWeight import BOLD, NORMAL
 from com.sun.star.lang import Locale
-from com.sun.star.style.BreakType import PAGE_AFTER,PAGE_BEFORE
+from com.sun.star.style.BreakType import PAGE_AFTER, PAGE_BEFORE
 from com.sun.star.style.NumberingType import ARABIC
 from com.sun.star.text.ControlCharacter import PARAGRAPH_BREAK
 from com.sun.star.text.TextContentAnchorType import AS_CHARACTER
 from com.sun.star.text.ReferenceFieldPart import CHAPTER, CATEGORY_AND_NUMBER
-from com.sun.star.text.ReferenceFieldSource import BOOKMARK,REFERENCE_MARK,SEQUENCE_FIELD
+from com.sun.star.text.ReferenceFieldSource import BOOKMARK, REFERENCE_MARK, SEQUENCE_FIELD
 from com.sun.star.text.SetVariableType import SEQUENCE
+from com.sun.star.text.WrapTextMode import NONE, DYNAMIC, PARALLEL, LEFT, RIGHT
+from com.sun.star.style.ParagraphAdjust import CENTER
 
 # ---------------------------------------------------------
 # Setup hacks ...
@@ -210,8 +212,13 @@ class Renderer(object):
          raise RuntimeError('Unsupported container type: %s' % containerType)
 
    def renderImage(self, img):
-      self.insertImage(img['imageFilename'], img['imageCaption'],
-                       img['imageLabel'])
+      file_name = img['imageFilename']
+      caption = img['imageCaption']
+      label = img['imageLabel']
+      scaling = img['imageScaling']
+      alignment = img['imageAlignment']
+
+      self.insertImage(file_name, caption, label, scaling, alignment)
 
    def handleCustomMetaTag(self, tag):
       raise NotImplementedError
@@ -413,7 +420,7 @@ class Renderer(object):
       maxHeight = (self.template_height() - 20) * 100  # Template maximum height in millimeters is 236.
                                                        # Let's save some margin.
 
-      size = image.Size
+      size = image.ActualSize
       if size.Height == 0 or size.Width == 0:
          size.Height = image.SizePixel.Height * 2540.0 * TwipsPerPixelY() / 1440
          size.Width  = image.SizePixel.Width  * 2540.0 * TwipsPerPixelX() / 1440
@@ -446,8 +453,9 @@ class Renderer(object):
       return field
 
    # Provide sizes in 1/100 mm if you need to.
-   def _insertImage(self, path, inline = False, width = None, 
-                    height = None, scale = None, vOffset = None):
+   def _insertImage(self, path, inline=False, width=None,
+                    height=None, scale=1.0, v_offset=None,
+                    align="center"):
 
       if platform.platform().lower().startswith('win'):
          url = 'file:///' + os.path.realpath(path).replace(':', '|')
@@ -461,13 +469,25 @@ class Renderer(object):
          internalUrl = bitmaps.getByName(url)
       except:
          bitmaps.insertByName(url, url) 
-      internalUrl = bitmaps.getByName(url)
+         internalUrl = bitmaps.getByName(url)
 
       # Now insert the image, *NOT* using the source from the internal
       # bitmap table, but instead using the external URL.
       graph = self._realDocument.createInstance("com.sun.star.text.TextGraphicObject")
+
+      if align == "left":
+         graph.HoriOrient = 0
+         graph.RightMargin = 300
+         graph.TextWrap = RIGHT
+
+      if align == "right":
+         graph.HoriOrient = 1
+         graph.LeftMargin = 300
+         graph.TextWrap = LEFT
+
       if inline:
          graph.AnchorType = AS_CHARACTER
+
       self._document.Text.insertTextContent(self._cursor, graph, False)
 
       graph.GraphicURL = url
@@ -476,14 +496,15 @@ class Renderer(object):
       time.sleep(0.1)
 
       # Now we can correctly determine the image size
-      if not width and not height and not scale:
+      if not width and not height:
          size = self.guessImageSize(graph)
          if size:
             gsize = graph.Size
-            gsize.Height = size.Height
-            gsize.Width = size.Width
+            gsize.Width = int(size.Width * float(scale))
+            gsize.Height = int(size.Height * float(scale))
             graph.Size = gsize
-      elif not scale:
+
+      else:
          gsize = graph.Size
          oldW, oldH = gsize.Width, gsize.Height
          if width:
@@ -495,49 +516,85 @@ class Renderer(object):
             if not width:
                gsize.Width = int ( (float(height)/oldH) * oldW)
          graph.Size = gsize
-      else:
-         gsize = graph.Size
-         w, h = gsize.Width, gsize.Height
-         gsize.Width = int(w * float(scale))
-         gsize.Height = int(h * float(scale))
-         graph.Size = gsize
 
       # Finally, we can use the internal URL, so that the image will
       # actually be embedded into the ODT. Like.. WTF?
       graph.GraphicURL = internalUrl
    
-      if vOffset and vOffset != 0:
+      if v_offset and v_offset != 0:
          graph.VertOrient = 0
-         graph.VertOrientPosition = -graph.Size.Height + float(vOffset)
+         graph.VertOrientPosition = -graph.Size.Height + float(v_offset)
 
       return graph
 
    def insertInlineImage(self, path, vOffset):
       if self.needSpace():
          self.insertString(' ')
-      self._insertImage(path, inline = True, scale = 0.15, vOffset = vOffset)
+      self._insertImage(path, inline=True, scale=0.15, v_offset=vOffset)
       self.smartSpace()
 
-   def insertImage(self, path, caption, labelName):
+   def insertImage(self, path, caption, label_name, scaling, alignment):
       CAPTION_TITLE=self.i18n['figure']
-
-      self.insert_paragraph_character(avoid_empty_paragraph=True)
-      self._insertImage(path)
-
-      oldStyle = self.changeParaStyle(self.STYLE_FIGURE_CAPTION)
       field = self.createSequenceField(CAPTION_TITLE)
+
+      if alignment == "center":
+          self.insert_paragraph_character(avoid_empty_paragraph=True)
+
+      # create a frame to group image and caption
+      frame = self._document.createInstance("com.sun.star.text.TextFrame")
+      self._document.Text.insertTextContent(self._cursor, frame, False)
+
+      # change active context
+      cursor_in_frame = frame.Text.createTextCursor()
+      oldDoc = self._document
+      oldCur = self._cursor
+
+      self._cursor = cursor_in_frame
+      self._document = frame
+
+      graph = self._insertImage(path, scale=scaling, align=alignment)
+
+      cursor_in_frame.ParaStyleName = self.STYLE_FIGURE_CAPTION
+
       self.insertString(CAPTION_TITLE + ' ')
-      self._document.Text.insertTextContent(self._cursor, field, False)
+      self._document.insertTextContent(cursor_in_frame, field, False)
       self.insertString(' - ')
       self.insertString(caption)
 
-      self.insert_paragraph_character(avoid_empty_paragraph=True)
-      self.changeParaStyle(oldStyle)
+      # restore previous context
+      self._document = oldDoc
+      self._cursor = oldCur
+
+      # style frame to match inner image and disable borders
+      frame.Size = graph.Size
+      frame.TextWrap = graph.TextWrap
+      frame.Surround = graph.TextWrap
+      frame.BorderDistance = 0
+      frame.LeftMargin = graph.LeftMargin
+      frame.RightMargin = graph.RightMargin
+      frame.BottomMargin = 150
+      frame.HoriOrient = graph.HoriOrient
+      frame.HoriOrientPosition = graph.HoriOrientPosition
+      frame.VertOrient = graph.VertOrient
+      frame.VertOrientPosition = graph.VertOrientPosition
+
+      border_line = frame.getPropertyValue("LeftBorder")
+      border_line.OuterLineWidth = 0
+      border_line.LineWidth = 0
+      frame.setPropertyValue("LineStyle", border_line)
+
+      if alignment == "center":
+          frame.AnchorType = AS_CHARACTER
+
+          previous_adjustment = self._cursor.ParaAdjust
+          self._cursor.ParaAdjust = CENTER
+          self.insert_paragraph_character(avoid_empty_paragraph=False)
+          self._cursor.ParaAdjust = previous_adjustment
 
       # Remember the number of the current image, so that we'll later
       # be able to reference it properly.
       cnt = len(self.Images)
-      self.Images[labelName] = cnt
+      self.Images[label_name] = cnt
 
    def insertUListItem(self, content):
       self.insert_paragraph_character(avoid_empty_paragraph=True)
@@ -662,7 +719,7 @@ class Renderer(object):
       self.toc = index
 
    def insertPageBreak(self):
-      self.insert_paragraph_character(avoid_empty_paragraph=True)
+      self.insert_paragraph_character(avoid_empty_paragraph=False)
       self._cursor.gotoEnd(False)
       self._cursor.BreakType = PAGE_BEFORE
 

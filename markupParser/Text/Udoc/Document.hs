@@ -252,26 +252,31 @@ instance JSON Heading where
 
 {-| An image in a document -}
 data DocumentImage = Image {
-                        imageFilename :: String -- ^ The file name of the image
-                      , imageCaption  :: String -- ^ The image's caption
-                      , imageLabel    :: String -- ^ A label for referencing the
-                                                -- image
+                        imageFilename  :: String -- ^ The file name of the image
+                      , imageCaption   :: String -- ^ The image's caption
+                      , imageLabel     :: String -- ^ A label for referencing the image
+                      , imageScaling   :: String -- ^ An expected scaling factor (Default: 1.0)
+                      , imageAlignment :: String -- ^ The alignment (Default: center)
                      } deriving(Show, Eq)
 
 instance JSON DocumentImage where
-   showJSON (Image filename caption label) =
-      makeObj [  ("imageFilename", showJSON filename)
-               , ("imageCaption" , showJSON caption)
-               , ("imageLabel"   , showJSON label)
+   showJSON (Image filename caption label scaling alignment) =
+      makeObj [  ("imageFilename" , showJSON filename)
+               , ("imageCaption"  , showJSON caption)
+               , ("imageLabel"    , showJSON label)
+               , ("imageScaling"  , showJSON scaling)
+               , ("imageAlignment", showJSON alignment)
               ]
 
    readJSON (JSObject obj) = let
       jsonObjAssoc = fromJSObject obj
     in do
-      filename <- mLookup "imageFilename" jsonObjAssoc >>= readJSON
-      caption  <- mLookup "imageCaption"  jsonObjAssoc >>= readJSON
-      label    <- mLookup "imageLabel"    jsonObjAssoc >>= readJSON
-      return $ Image filename caption label
+      filename  <- mLookup "imageFilename"  jsonObjAssoc >>= readJSON
+      caption   <- mLookup "imageCaption"   jsonObjAssoc >>= readJSON
+      label     <- mLookup "imageLabel"     jsonObjAssoc >>= readJSON
+      scaling   <- mLookup "imageScaling"   jsonObjAssoc >>= readJSON
+      alignment <- mLookup "imageAlignment" jsonObjAssoc >>= readJSON
+      return $ Image filename caption label scaling alignment
 
 ------------------------ Compute the heading level --------------------
 
