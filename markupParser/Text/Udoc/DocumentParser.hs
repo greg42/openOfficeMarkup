@@ -309,7 +309,7 @@ handleLab = handleMetaTag "label" [("name", "name")] []
 -- | Checks that all required arguments are present and then creates the
 -- meta tag with the type ref.
 handleRef :: [(String, String)] -> IParse DocumentItem
-handleRef = handleMetaTag "ref" [("label", "label")] []
+handleRef = handleMetaTag "ref" [("label", "label")] [("style", "style")]
 
 -- | Checks that all required arguments are present and then creates the
 -- meta tag with the type imgref.
