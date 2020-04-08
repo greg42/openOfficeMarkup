@@ -395,6 +395,9 @@ handleExtendedCommand name args handleSpecialCommand =
                      bold <- containerContentsUntil (extendedCommandName "/b") 
                                                     handleSpecialCommand
                      return $ ItemDocumentContainer $ DocumentBoldFace bold
+      "i"      -> do skipEmptyLines
+                     italic <- containerContentsUntil (extendedCommandName "/i") handleSpecialCommand
+                     return $ ItemDocumentContainer $ DocumentItalicFace italic
       "br"     -> return $ ItemLinebreak
       "meta"   -> return $ ItemMetaTag args
       "pb"     -> return $ ItemMetaTag [("type", "pagebreak")]

@@ -39,6 +39,7 @@ import           Data.List
     environment in LaTeX. -}
 data DocumentContainer =   DocumentHeading   Heading [DocumentItem]
                          | DocumentBoldFace  [DocumentItem]
+                         | DocumentItalicFace [DocumentItem]
                          | DocumentParagraph [DocumentItem]
                          | DocumentOList     [(OListItem, [DocumentItem])]
                          | DocumentUList     [(UListItem, [DocumentItem])]
@@ -63,9 +64,15 @@ instance JSON DocumentContainer where
                , ("DocumentHeading", showJSON heading)
                , ("content", showJSON items)
               ]
+
    showJSON (DocumentBoldFace items) = 
       makeObj [  ("type", showJSON "DocumentBoldFace")
                , ("content", showJSON items)
+              ]
+
+   showJSON (DocumentItalicFace items) =
+      makeObj [ ("type", showJSON "DocumentItalicFace")
+              , ("content", showJSON items)
               ]
 
    showJSON (DocumentParagraph items) = 
@@ -113,12 +120,13 @@ instance JSON DocumentContainer where
     in do
       objType <- getOne "type"
       case objType of
-         "DocumentHeading"        -> DocumentHeading   <$> (getOne objType) <*> 
-                                                           getOne "content"
-         "DocumentBoldFace"       -> DocumentBoldFace  <$> getOne "content"
-         "DocumentParagraph"      -> DocumentParagraph <$> getOne "content"
-         "DocumentOList"          -> DocumentOList     <$> getOne "content"
-         "DocumentUList"          -> DocumentUList     <$> getOne "content"
+         "DocumentHeading"        -> DocumentHeading    <$> (getOne objType) <*>
+                                                            getOne "content"
+         "DocumentBoldFace"       -> DocumentBoldFace   <$> getOne "content"
+         "DocumentItalicFace"     -> DocumentItalicFace <$> getOne "content"
+         "DocumentParagraph"      -> DocumentParagraph  <$> getOne "content"
+         "DocumentOList"          -> DocumentOList      <$> getOne "content"
+         "DocumentUList"          -> DocumentUList      <$> getOne "content"
          "DocumentTable"          -> do thing   <- getOne "content"
                                         caption <- getOne' "caption"
                                         label   <- getOne' "label"
@@ -351,6 +359,9 @@ flatRecurse func (DocumentHeading _ content) =
 flatRecurse func (DocumentBoldFace content) =
    func content
 
+flatRecurse func (DocumentItalicFace content) =
+  func content
+
 flatRecurse func (DocumentParagraph content) =
    func content
 
@@ -391,6 +402,9 @@ deepRecurse func (DocumentHeading h content) =
 deepRecurse func (DocumentBoldFace content) =
    DocumentBoldFace $ func content
 
+deepRecurse func (DocumentItalicFace content) =
+  DocumentItalicFace $ func content
+
 deepRecurse func (DocumentParagraph content) =
    DocumentParagraph $ func content
 
@@ -426,7 +440,8 @@ extractWords :: [DocumentItem] -> String
 extractWords = intercalate " " . catMaybes . map collectWords
     where collectWords (ItemWord x) = Just x
           collectWords (ItemDocumentContainer (DocumentHeading _ dis)) = Just $ extractWords dis
-          collectWords (ItemDocumentContainer (DocumentBoldFace dis))  = Just $ extractWords dis
+          collectWords (ItemDocumentContainer (DocumentBoldFace dis)) = Just $ extractWords dis
+          collectWords (ItemDocumentContainer (DocumentItalicFace dis)) = Just $ extractWords dis
           collectWords (ItemDocumentContainer (DocumentParagraph dis)) = Just $ extractWords dis
           collectWords (ItemDocumentContainer (DocumentOList oli)) = Just $ intercalate "\n" $ map (extractWords . snd) oli
           collectWords (ItemDocumentContainer (DocumentUList uli)) = Just $ intercalate "\n" $ map (extractWords . snd) uli
