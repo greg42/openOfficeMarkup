@@ -827,14 +827,17 @@ headingBegin = do
 
 -- | A heading
 heading :: HSP -> IParse DocumentItem
-heading hsp = do level <- headingBegin
-                 items <- block $ do
-                              l <- line hsp
-                              optional newline
-                              spaces
-                              return l
-                 skipEmptyLines
-                 return $ ItemDocumentContainer (DocumentHeading (Heading level Nothing) (concat items))
+heading hsp =
+   let
+      closeHeading :: IParse ()
+      closeHeading = do
+         newline
+         return ()
+   in
+     do
+       level <- headingBegin
+       content <- paragraphWithout closeHeading hsp
+       return $ ItemDocumentContainer $ DocumentHeading (Heading level Nothing) [content]
 
 -- | The start of a block quote
 blockQuoteBegin :: IParse ()
