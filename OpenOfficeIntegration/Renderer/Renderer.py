@@ -260,14 +260,20 @@ class Renderer(object):
       return None
 
    @staticmethod
-   def _get_meta_tag_type(item):
-      if type(item) is not dict \
-            or 'ItemMetaTag' not in item \
-            or 'type' not in item['ItemMetaTag']:
+   def get_container_content_type(item):
+       if type(item) is not dict:
+           return None
 
-         return None
+       tag_type = None
+       while True:
+           item = item.get("ItemDocumentContainer")\
+                  or item.get("DocumentMetaContainer")\
+                  or item.get('ItemMetaTag')
 
-      return item['ItemMetaTag']['type']
+           if not item or type(item) is not dict:
+               return tag_type
+
+           tag_type = item.get("properties", {}).get("type") or item.get("type")
 
    def smartSpace(self, skip_if=lambda cursor, word: cursor.isStartOfParagraph()):
       def starts_with_punctuation(x):
@@ -287,12 +293,15 @@ class Renderer(object):
       self._hookRender = smart_space_hook
 
    def needSpace(self):
+      if self._cursor.getText().getString().endswith(' '):
+          return False
+
       w = self._getWord(self._lastItem)
-      if w is not None:
+      if w:
          return not (w.endswith('(') or w.endswith('['))
 
-      type_name = self._get_meta_tag_type(self._lastItem)
-      if type_name not in ["footnote", "imgref", "inlineimage", "ref", "tblref"]:
+      type_name = self.get_container_content_type(self._lastItem)
+      if type_name not in self.inline_content_injection_container():
          return False
 
       return True
@@ -882,6 +891,11 @@ class Renderer(object):
 
    def has_toc(self):
        return self.toc is not None
+
+   @staticmethod
+   def inline_content_injection_container():
+       return ["DocumentBoldFace", "DocumentItalicFace", "footnote", "imgref",
+               "inlineimage", "inlineQuote", "inlineSource", "ref", "tblref"]
 
 class VanillaRenderer(Renderer):
    def __init__(self):
