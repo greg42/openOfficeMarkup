@@ -626,7 +626,16 @@ class Renderer(object):
 
    def insertReferenceMark(self, name, text_range=None):
       if not text_range:
-         text_range = self._cursor
+         current_style = self._cursor.ParaStyleName.lower()
+
+         if "heading" in current_style:
+             text = self._cursor.getText()
+             heading_cursor = text.createTextCursorByRange(self._cursor)
+             heading_cursor.gotoStartOfParagraph(True)
+
+             text_range = heading_cursor
+         else:
+             text_range = self._cursor
 
       reference = self._realDocument.createInstance("com.sun.star.text.ReferenceMark")
       reference.Name = name
