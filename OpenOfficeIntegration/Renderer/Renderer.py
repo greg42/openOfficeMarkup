@@ -624,10 +624,13 @@ class Renderer(object):
       bm.Name = name
       self._document.Text.insertTextContent(self._cursor, bm, False)
 
-   def insertReferenceMark(self, name):
-      bm = self._realDocument.createInstance("com.sun.star.text.ReferenceMark")
-      bm.Name = name
-      self._document.Text.insertTextContent(self._cursor, bm, False)
+   def insertReferenceMark(self, name, text_range=None):
+      if not text_range:
+         text_range = self._cursor
+
+      reference = self._realDocument.createInstance("com.sun.star.text.ReferenceMark")
+      reference.Name = name
+      reference.attach(text_range)
 
    def insertReference(self, tag):
       label = tag.get('label', 'unknown label name')
@@ -641,6 +644,8 @@ class Renderer(object):
          field.ReferenceFieldPart = ReferenceFieldPart.PAGE
       elif style == 'up_down':
          field.ReferenceFieldPart = ReferenceFieldPart.UP_DOWN
+      elif style == 'text':
+         field.ReferenceFieldPart = ReferenceFieldPart.TEXT
       else:
           field.ReferenceFieldPart = ReferenceFieldPart.CHAPTER
 
