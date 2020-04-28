@@ -620,9 +620,24 @@ class Renderer(object):
       self.smartSpace()
 
    def insertBookmark(self, name):
+      """
+        Insert a bookmark for future replacement.
+
+        The bookmark is going to inject a paceholder into the actual text
+        to ensure proper placement of successiv line breaks and spaces.
+
+        It is therefore necessary to delete the content of the bookmark
+        as soon as you replace it with the actual content.
+      """
+      self._document.Text.insertString(self._cursor, name, False)
+
+      text = self._cursor.getText()
+      bookmark_cursor = text.createTextCursorByRange(self._cursor)
+      bookmark_cursor.goLeft(len(name), True)
+
       bm = self._realDocument.createInstance("com.sun.star.text.Bookmark")
       bm.Name = name
-      self._document.Text.insertTextContent(self._cursor, bm, False)
+      bm.attach(bookmark_cursor)
 
    def insertReferenceMark(self, name):
       bm = self._realDocument.createInstance("com.sun.star.text.ReferenceMark")
@@ -653,27 +668,29 @@ class Renderer(object):
       self.insertBookmark(refName)
       self.smartSpace(skip_if=lambda _cursor, _word: False)
 
-      space = self.needSpace()
+      need_space = self.needSpace()
+
       def do_insert_imageref(self):
-         where = self._document.getBookmarks().getByName(refName).getAnchor()
-         oldCur = self._cursor
-         self._cursor = where
+         if name not in self.Images:
+            raise RuntimeError('Unknown image %s' % name)
+
          field = self._realDocument.createInstance("com.sun.star.text.textfield.GetReference")
          field.ReferenceFieldPart = CATEGORY_AND_NUMBER
          field.ReferenceFieldSource = SEQUENCE_FIELD
          field.SourceName = self.i18n['figure']
-         if not name in self.Images:
-            raise RuntimeError('Unknown image %s' % name)
-         field.SequenceNumber = self.Images[name] 
+         field.SequenceNumber = self.Images[name]
+
          # Inserting the space and the field in reverse content, because the
          # "cursor" is not going to be updated on these operations.
-         self._document.Text.insertTextContent(self._cursor, field, False)
-         # Also, insert a space before the reference
-         if space:
-            self.insertString(" ")
+         where = self._document.getBookmarks().getByName(refName).getAnchor()
+         where.setString("")
+
+         self._document.Text.insertTextContent(where, field, False)
+         if need_space:
+            self._document.Text.insertString(where, " ", False)
+
          self._document.getTextFields().refresh()
          self._document.refresh()
-         self._cursor = oldCur
 
       self.doAfterRendering(do_insert_imageref)
 
@@ -685,27 +702,29 @@ class Renderer(object):
       self.insertBookmark(refName)
       self.smartSpace(skip_if=lambda _cursor, _word: False)
 
-      space = self.needSpace()
+      need_space = self.needSpace()
+
       def do_insert_tableref(self):
-         where = self._document.getBookmarks().getByName(refName).getAnchor()
-         oldCur = self._cursor
-         self._cursor = where
+         if name not in self.Tables:
+             raise RuntimeError('Unknown table %s' % name)
+
          field = self._realDocument.createInstance("com.sun.star.text.textfield.GetReference")
          field.ReferenceFieldPart = CATEGORY_AND_NUMBER
          field.ReferenceFieldSource = SEQUENCE_FIELD
          field.SourceName = self.i18n['table']
-         if not name in self.Tables:
-            raise RuntimeError('Unknown table %s' % name)
-         field.SequenceNumber = self.Tables[name] 
+         field.SequenceNumber = self.Tables[name]
+
          # Inserting the space and the field in reverse content, because the
          # "cursor" is not going to be updated on these operations.
-         self._document.Text.insertTextContent(self._cursor, field, False)
-         # Also, insert a space before the reference
-         if space:
-            self.insertString(" ")
+         where = self._document.getBookmarks().getByName(refName).getAnchor()
+         where.setString("")
+
+         self._document.Text.insertTextContent(where, field, False)
+         if need_space:
+            self._document.Text.insertString(where, " ", False)
+
          self._document.getTextFields().refresh()
          self._document.refresh()
-         self._cursor = oldCur
 
       self.doAfterRendering(do_insert_tableref)
 
