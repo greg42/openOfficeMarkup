@@ -68,6 +68,8 @@ class Renderer(object):
       self._document = document
       self._realDocument = document
 
+      self._cursor.ParaStyleName = self.STYLE_STANDARD_TEXT
+
    def handleCustomMetaContainer(self, properties, content):
       raise NotImplementedError
 
