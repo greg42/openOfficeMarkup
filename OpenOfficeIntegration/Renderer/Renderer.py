@@ -19,9 +19,9 @@ from com.sun.star.awt.FontWeight import BOLD, NORMAL
 from com.sun.star.lang import Locale
 from com.sun.star.style.BreakType import PAGE_AFTER, PAGE_BEFORE
 from com.sun.star.style.NumberingType import ARABIC
+from com.sun.star.text import ReferenceFieldPart
 from com.sun.star.text.ControlCharacter import PARAGRAPH_BREAK
 from com.sun.star.text.TextContentAnchorType import AS_CHARACTER
-from com.sun.star.text.ReferenceFieldPart import CHAPTER, CATEGORY_AND_NUMBER
 from com.sun.star.text.ReferenceFieldSource import BOOKMARK, REFERENCE_MARK, SEQUENCE_FIELD
 from com.sun.star.text.SetVariableType import SEQUENCE
 from com.sun.star.text.WrapTextMode import NONE, DYNAMIC, PARALLEL, LEFT, RIGHT
@@ -234,7 +234,7 @@ class Renderer(object):
       elif tag['type'] == 'label':
          self.insertReferenceMark(tag['name'])
       elif tag['type'] == 'ref':
-         self.insertReference(tag['label'])
+         self.insertReference(tag)
       elif tag['type'] == 'imgref':
          self.insertImageReference(tag['label'])
       elif tag['type'] == 'tblref':
@@ -624,18 +624,43 @@ class Renderer(object):
       bm.Name = name
       self._document.Text.insertTextContent(self._cursor, bm, False)
 
-   def insertReferenceMark(self, name):
-      bm = self._realDocument.createInstance("com.sun.star.text.ReferenceMark")
-      bm.Name = name
-      self._document.Text.insertTextContent(self._cursor, bm, False)
+   def insertReferenceMark(self, name, text_range=None):
+      if not text_range:
+         current_style = self._cursor.ParaStyleName.lower()
 
-   def insertReference(self, name):
+         if "heading" in current_style:
+             text = self._cursor.getText()
+             heading_cursor = text.createTextCursorByRange(self._cursor)
+             heading_cursor.gotoStartOfParagraph(True)
+
+             text_range = heading_cursor
+         else:
+             text_range = self._cursor
+
+      reference = self._realDocument.createInstance("com.sun.star.text.ReferenceMark")
+      reference.Name = name
+      reference.attach(text_range)
+
+   def insertReference(self, tag):
+      label = tag.get('label', 'unknown label name')
+      style = tag.get('style', 'chapter').lower()
+
       field = self._realDocument.createInstance("com.sun.star.text.textfield.GetReference")
-      field.ReferenceFieldPart = CHAPTER
       field.ReferenceFieldSource = REFERENCE_MARK
-      field.SourceName = name
+      field.SourceName = label
+
+      if style == 'page':
+         field.ReferenceFieldPart = ReferenceFieldPart.PAGE
+      elif style == 'up_down':
+         field.ReferenceFieldPart = ReferenceFieldPart.UP_DOWN
+      elif style == 'text':
+         field.ReferenceFieldPart = ReferenceFieldPart.TEXT
+      else:
+          field.ReferenceFieldPart = ReferenceFieldPart.CHAPTER
+
       if self.needSpace():
          self.insertString(" ")
+
       self._document.Text.insertTextContent(self._cursor, field, False)
       self._realDocument.getTextFields().refresh()
       self._realDocument.refresh()
@@ -659,7 +684,7 @@ class Renderer(object):
          oldCur = self._cursor
          self._cursor = where
          field = self._realDocument.createInstance("com.sun.star.text.textfield.GetReference")
-         field.ReferenceFieldPart = CATEGORY_AND_NUMBER
+         field.ReferenceFieldPart = ReferenceFieldPart.CATEGORY_AND_NUMBER
          field.ReferenceFieldSource = SEQUENCE_FIELD
          field.SourceName = self.i18n['figure']
          if not name in self.Images:
@@ -691,12 +716,12 @@ class Renderer(object):
          oldCur = self._cursor
          self._cursor = where
          field = self._realDocument.createInstance("com.sun.star.text.textfield.GetReference")
-         field.ReferenceFieldPart = CATEGORY_AND_NUMBER
+         field.ReferenceFieldPart = ReferenceFieldPart.CATEGORY_AND_NUMBER
          field.ReferenceFieldSource = SEQUENCE_FIELD
          field.SourceName = self.i18n['table']
          if not name in self.Tables:
             raise RuntimeError('Unknown table %s' % name)
-         field.SequenceNumber = self.Tables[name] 
+         field.SequenceNumber = self.Tables[name]
          # Inserting the space and the field in reverse content, because the
          # "cursor" is not going to be updated on these operations.
          self._document.Text.insertTextContent(self._cursor, field, False)
