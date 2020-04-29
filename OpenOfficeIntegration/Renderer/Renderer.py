@@ -191,8 +191,7 @@ class Renderer(object):
    def renderContainer(self, container):
       containerType = container['type']
       if containerType == 'DocumentHeading':
-         self.renderHeading(container['DocumentHeading'], 
-                            container['content'])
+         self.renderHeading(container['DocumentHeading'], container['content'])
       elif containerType == 'DocumentBoldFace':
          self.renderBoldFace(container['content'])
       elif containerType == 'DocumentItalicFace':
@@ -202,8 +201,7 @@ class Renderer(object):
       elif containerType == 'DocumentTable':
          self.renderTable(container['content'], container['caption'], container['label'], container['style'], container['widths'])
       elif containerType == 'DocumentMetaContainer':
-         self.renderMetaContainer(container['content'],
-                             container['properties'])
+         self.renderMetaContainer(container['content'], container['properties'])
       elif containerType == 'DocumentUList':
          self.renderUlist(container['content'])
       elif containerType == 'DocumentOList':
@@ -819,13 +817,14 @@ class Renderer(object):
       if headingLevel > 4:
          raise RuntimeError('Illegal heading level!')
 
-      self.render(headingText)
       self._cursor.ParaStyleName = self.STYLE_PARAM_HEADING % headingLevel
-      headingNumber = self._cursor.ListLabelString
 
+      self.render(headingText)
       self.insert_paragraph_character(avoid_empty_paragraph=True)
+
       self._cursor.ParaStyleName = self.STYLE_STANDARD_TEXT
 
+      headingNumber = self._cursor.ListLabelString
       self.CurrentHeading = (headingLevel, headingText, headingNumber)
 
    def insertBoldFace(self, text):
