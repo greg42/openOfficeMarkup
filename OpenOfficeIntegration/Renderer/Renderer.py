@@ -621,7 +621,22 @@ class Renderer(object):
       fn = self._realDocument.createInstance("com.sun.star.text.Footnote")
       self._document.Text.insertTextContent(self._cursor, fn, False)
       fn.insertString(fn.createTextCursor(), content, False)
+
       self.smartSpace()
+      smart_space_hook = self._hookRender
+
+      def footnote_hook(item):
+          is_footnote = type(item) is dict and item.get("ItemMetaTag", {}).get("type") == "footnote"
+          if is_footnote:
+             old_name = self.changeCharProperty(CharProp.StyleName, self.STYLE_FOOTNOTE_ANCHOR)
+             self.insertString(',')
+             self.changeCharProperty(CharProp.StyleName, old_name)
+          else:
+              smart_space_hook(item)
+
+          return True
+
+      self._hookRender = footnote_hook
 
    def insertBookmark(self, name):
       bm = self._realDocument.createInstance("com.sun.star.text.Bookmark")
@@ -941,6 +956,7 @@ class VanillaRenderer(Renderer):
       self.STYLE_SOURCE_CODE         = "Source Code"
       self.STYLE_QUOTE               = "Quotations"
       self.STYLE_INLINE_SOURCE_CODE  = "Source Code"
+      self.STYLE_FOOTNOTE_ANCHOR     = "Footnote Anchor"
       self.STYLE_TABLE_HEADING_BACKGROUND = 11111111
       self.custom_i18n['en'] = {
          'figure': 'Figure',
