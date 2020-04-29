@@ -19,9 +19,9 @@ from com.sun.star.awt.FontWeight import BOLD, NORMAL
 from com.sun.star.lang import Locale
 from com.sun.star.style.BreakType import PAGE_AFTER, PAGE_BEFORE
 from com.sun.star.style.NumberingType import ARABIC
+from com.sun.star.text import ReferenceFieldPart
 from com.sun.star.text.ControlCharacter import PARAGRAPH_BREAK
 from com.sun.star.text.TextContentAnchorType import AS_CHARACTER
-from com.sun.star.text.ReferenceFieldPart import CHAPTER, CATEGORY_AND_NUMBER
 from com.sun.star.text.ReferenceFieldSource import BOOKMARK, REFERENCE_MARK, SEQUENCE_FIELD
 from com.sun.star.text.SetVariableType import SEQUENCE
 from com.sun.star.text.WrapTextMode import NONE, DYNAMIC, PARALLEL, LEFT, RIGHT
@@ -67,6 +67,8 @@ class Renderer(object):
       self._cursor = cursor
       self._document = document
       self._realDocument = document
+
+      self._cursor.ParaStyleName = self.STYLE_STANDARD_TEXT
 
    def handleCustomMetaContainer(self, properties, content):
       raise NotImplementedError
@@ -191,8 +193,7 @@ class Renderer(object):
    def renderContainer(self, container):
       containerType = container['type']
       if containerType == 'DocumentHeading':
-         self.renderHeading(container['DocumentHeading'], 
-                            container['content'])
+         self.renderHeading(container['DocumentHeading'], container['content'])
       elif containerType == 'DocumentBoldFace':
          self.renderBoldFace(container['content'])
       elif containerType == 'DocumentItalicFace':
@@ -202,8 +203,7 @@ class Renderer(object):
       elif containerType == 'DocumentTable':
          self.renderTable(container['content'], container['caption'], container['label'], container['style'], container['widths'])
       elif containerType == 'DocumentMetaContainer':
-         self.renderMetaContainer(container['content'],
-                             container['properties'])
+         self.renderMetaContainer(container['content'], container['properties'])
       elif containerType == 'DocumentUList':
          self.renderUlist(container['content'])
       elif containerType == 'DocumentOList':
@@ -234,7 +234,7 @@ class Renderer(object):
       elif tag['type'] == 'label':
          self.insertReferenceMark(tag['name'])
       elif tag['type'] == 'ref':
-         self.insertReference(tag['label'])
+         self.insertReference(tag)
       elif tag['type'] == 'imgref':
          self.insertImageReference(tag['label'])
       elif tag['type'] == 'tblref':
@@ -260,23 +260,24 @@ class Renderer(object):
       return None
 
    @staticmethod
-   def _get_meta_tag_type(item):
-      if type(item) is not dict \
-            or 'ItemMetaTag' not in item \
-            or 'type' not in item['ItemMetaTag']:
+   def get_container_content_type(item):
+       if type(item) is not dict:
+           return None
 
-         return None
+       tag_type = None
+       while True:
+           item = item.get("ItemDocumentContainer")\
+                  or item.get("DocumentMetaContainer")\
+                  or item.get('ItemMetaTag')
 
-      return item['ItemMetaTag']['type']
+           if not item or type(item) is not dict:
+               return tag_type
+
+           tag_type = item.get("properties", {}).get("type") or item.get("type")
 
    def smartSpace(self, skip_if=lambda cursor, word: cursor.isStartOfParagraph()):
-      punctuation = ('.', ',', ';', ':', '!', '?', ')', ']')
       def starts_with_punctuation(x):
-         for p in punctuation:
-            if x.startswith(p):
-               return True
-
-         return False
+         return x.startswith(('.', ',', ';', ':', '!', '?', ')', ']'))
 
       def smart_space_hook(item):
          word = self._getWord(item)
@@ -292,12 +293,15 @@ class Renderer(object):
       self._hookRender = smart_space_hook
 
    def needSpace(self):
+      if self._cursor.getText().getString().endswith(' '):
+          return False
+
       w = self._getWord(self._lastItem)
-      if w is not None:
+      if w:
          return not (w.endswith('(') or w.endswith('['))
 
-      type_name = self._get_meta_tag_type(self._lastItem)
-      if type_name not in ["footnote", "imgref", "inlineimage", "ref", "tblref"]:
+      type_name = self.get_container_content_type(self._lastItem)
+      if type_name not in self.inline_content_injection_container():
          return False
 
       return True
@@ -617,7 +621,22 @@ class Renderer(object):
       fn = self._realDocument.createInstance("com.sun.star.text.Footnote")
       self._document.Text.insertTextContent(self._cursor, fn, False)
       fn.insertString(fn.createTextCursor(), content, False)
+
       self.smartSpace()
+      smart_space_hook = self._hookRender
+
+      def footnote_hook(item):
+          is_footnote = type(item) is dict and item.get("ItemMetaTag", {}).get("type") == "footnote"
+          if is_footnote:
+             old_name = self.changeCharProperty(CharProp.StyleName, self.STYLE_FOOTNOTE_ANCHOR)
+             self.insertString(',')
+             self.changeCharProperty(CharProp.StyleName, old_name)
+          else:
+              smart_space_hook(item)
+
+          return True
+
+      self._hookRender = footnote_hook
 
    def insertBookmark(self, name):
       """
@@ -639,18 +658,43 @@ class Renderer(object):
       bm.Name = name
       bm.attach(bookmark_cursor)
 
-   def insertReferenceMark(self, name):
-      bm = self._realDocument.createInstance("com.sun.star.text.ReferenceMark")
-      bm.Name = name
-      self._document.Text.insertTextContent(self._cursor, bm, False)
+   def insertReferenceMark(self, name, text_range=None):
+      if not text_range:
+         current_style = self._cursor.ParaStyleName.lower()
 
-   def insertReference(self, name):
+         if "heading" in current_style:
+             text = self._cursor.getText()
+             heading_cursor = text.createTextCursorByRange(self._cursor)
+             heading_cursor.gotoStartOfParagraph(True)
+
+             text_range = heading_cursor
+         else:
+             text_range = self._cursor
+
+      reference = self._realDocument.createInstance("com.sun.star.text.ReferenceMark")
+      reference.Name = name
+      reference.attach(text_range)
+
+   def insertReference(self, tag):
+      label = tag.get('label', 'unknown label name')
+      style = tag.get('style', 'chapter').lower()
+
       field = self._realDocument.createInstance("com.sun.star.text.textfield.GetReference")
-      field.ReferenceFieldPart = CHAPTER
       field.ReferenceFieldSource = REFERENCE_MARK
-      field.SourceName = name
+      field.SourceName = label
+
+      if style == 'page':
+         field.ReferenceFieldPart = ReferenceFieldPart.PAGE
+      elif style == 'up_down':
+         field.ReferenceFieldPart = ReferenceFieldPart.UP_DOWN
+      elif style == 'text':
+         field.ReferenceFieldPart = ReferenceFieldPart.TEXT
+      else:
+          field.ReferenceFieldPart = ReferenceFieldPart.CHAPTER
+
       if self.needSpace():
          self.insertString(" ")
+
       self._document.Text.insertTextContent(self._cursor, field, False)
       self._realDocument.getTextFields().refresh()
       self._realDocument.refresh()
@@ -675,7 +719,7 @@ class Renderer(object):
             raise RuntimeError('Unknown image %s' % name)
 
          field = self._realDocument.createInstance("com.sun.star.text.textfield.GetReference")
-         field.ReferenceFieldPart = CATEGORY_AND_NUMBER
+         field.ReferenceFieldPart = ReferenceFieldPart.CATEGORY_AND_NUMBER
          field.ReferenceFieldSource = SEQUENCE_FIELD
          field.SourceName = self.i18n['figure']
          field.SequenceNumber = self.Images[name]
@@ -709,11 +753,12 @@ class Renderer(object):
              raise RuntimeError('Unknown table %s' % name)
 
          field = self._realDocument.createInstance("com.sun.star.text.textfield.GetReference")
-         field.ReferenceFieldPart = CATEGORY_AND_NUMBER
+         field.ReferenceFieldPart = ReferenceFieldPart.CATEGORY_AND_NUMBER
          field.ReferenceFieldSource = SEQUENCE_FIELD
          field.SourceName = self.i18n['table']
+         if not name in self.Tables:
+            raise RuntimeError('Unknown table %s' % name)
          field.SequenceNumber = self.Tables[name]
-
          # Inserting the space and the field in reverse content, because the
          # "cursor" is not going to be updated on these operations.
          where = self._document.getBookmarks().getByName(refName).getAnchor()
@@ -813,13 +858,14 @@ class Renderer(object):
       if headingLevel > 4:
          raise RuntimeError('Illegal heading level!')
 
-      self.render(headingText)
       self._cursor.ParaStyleName = self.STYLE_PARAM_HEADING % headingLevel
-      headingNumber = self._cursor.ListLabelString
 
+      self.render(headingText)
       self.insert_paragraph_character(avoid_empty_paragraph=True)
+
       self._cursor.ParaStyleName = self.STYLE_STANDARD_TEXT
 
+      headingNumber = self._cursor.ListLabelString
       self.CurrentHeading = (headingLevel, headingText, headingNumber)
 
    def insertBoldFace(self, text):
@@ -907,6 +953,11 @@ class Renderer(object):
    def has_toc(self):
        return self.toc is not None
 
+   @staticmethod
+   def inline_content_injection_container():
+       return ["DocumentBoldFace", "DocumentItalicFace", "footnote", "imgref",
+               "inlineimage", "inlineQuote", "inlineSource", "ref", "tblref"]
+
 class VanillaRenderer(Renderer):
    def __init__(self):
       Renderer.__init__(self)
@@ -925,6 +976,7 @@ class VanillaRenderer(Renderer):
       self.STYLE_SOURCE_CODE         = "Source Code"
       self.STYLE_QUOTE               = "Quotations"
       self.STYLE_INLINE_SOURCE_CODE  = "Source Code"
+      self.STYLE_FOOTNOTE_ANCHOR     = "Footnote Anchor"
       self.STYLE_TABLE_HEADING_BACKGROUND = 11111111
       self.custom_i18n['en'] = {
          'figure': 'Figure',
