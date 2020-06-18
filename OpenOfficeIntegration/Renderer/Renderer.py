@@ -898,7 +898,7 @@ class Renderer(object):
       self.insert_paragraph_character(avoid_empty_paragraph=True)
       self.changeParaStyle(oldStyle)
 
-   def insertInlineQuote(self, text):
+   def insertInlineQuote(self, content):
       if self.needSpace():
          self.insertString(" ")
 
@@ -906,12 +906,17 @@ class Renderer(object):
          self.insertString('„')
       else: 
          self.insertString('"')
-      self.render(text)
-      self.smartSpace()
+
+      # Do not put a space in front of quoted content.
+      self._lastItem = None
+      self.render(content)
+
       if self._currentLanguage == 'de':
          self.insertString('“')
       else:
          self.insertString('"')
+
+      self.smartSpace()
 
    def insertInlineSourceCode(self, text):
       if self.needSpace():
