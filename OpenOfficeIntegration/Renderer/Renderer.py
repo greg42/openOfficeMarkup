@@ -457,9 +457,7 @@ class Renderer(object):
       return field
 
    # Provide sizes in 1/100 mm if you need to.
-   def _insertImage(self, path, inline=False, width=None,
-                    height=None, scale=1.0, v_offset=None,
-                    align="center"):
+   def _insertImage(self, path, width=None, height=None, scale=1.0):
 
       if platform.platform().lower().startswith('win'):
          url = 'file:///' + os.path.realpath(path).replace(':', '|')
@@ -479,22 +477,12 @@ class Renderer(object):
       # bitmap table, but instead using the external URL.
       graph = self._realDocument.createInstance("com.sun.star.text.TextGraphicObject")
       graph.AnchorType = AS_CHARACTER
+      graph.GraphicURL = url
 
       border_line_style = uno.createUnoStruct("com.sun.star.table.BorderLine2")
       graph.setPropertyValue("LineStyle", border_line_style)
-      if align == "left":
-         graph.HoriOrient = 0
-         graph.RightMargin = 300
-         graph.TextWrap = RIGHT
-
-      if align == "right":
-         graph.HoriOrient = 1
-         graph.LeftMargin = 300
-         graph.TextWrap = LEFT
 
       self._document.Text.insertTextContent(self._cursor, graph, False)
-
-      graph.GraphicURL = url
 
       # XXX Yes, I know. It's super hacky.
       time.sleep(0.1)
@@ -524,17 +512,19 @@ class Renderer(object):
       # Finally, we can use the internal URL, so that the image will
       # actually be embedded into the ODT. Like.. WTF?
       graph.GraphicURL = internalUrl
-   
-      if v_offset and v_offset != 0:
-         graph.VertOrient = 0
-         graph.VertOrientPosition = -graph.Size.Height + float(v_offset)
 
       return graph
 
-   def insertInlineImage(self, path, vOffset):
+   def insertInlineImage(self, path, v_offset):
       if self.needSpace():
          self.insertString(' ')
-      self._insertImage(path, inline=True, scale=0.15, v_offset=vOffset)
+
+      graph = self._insertImage(path, scale=0.15)
+
+      if v_offset and v_offset != 0:
+          graph.VertOrient = 0
+          graph.VertOrientPosition = -graph.Size.Height + float(v_offset)
+
       self.smartSpace()
 
    def insertImage(self, path, caption, label_name, scaling, alignment):
@@ -556,7 +546,7 @@ class Renderer(object):
       self._cursor = cursor_in_frame
       self._document = frame
 
-      graph = self._insertImage(path, scale=scaling, align=alignment)
+      graph = self._insertImage(path, scale=scaling)
 
       cursor_in_frame.ParaStyleName = self.STYLE_FIGURE_CAPTION
 
@@ -571,21 +561,23 @@ class Renderer(object):
 
       # style frame to match inner image and disable borders
       frame.Size = graph.Size
-      frame.TextWrap = graph.TextWrap
-      frame.Surround = graph.TextWrap
       frame.BorderDistance = 0
-      frame.LeftMargin = graph.LeftMargin
-      frame.RightMargin = graph.RightMargin
       frame.BottomMargin = 150
-      frame.HoriOrient = graph.HoriOrient
-      frame.HoriOrientPosition = graph.HoriOrientPosition
-      frame.VertOrient = graph.VertOrient
-      frame.VertOrientPosition = graph.VertOrientPosition
 
       border_line_style = uno.createUnoStruct("com.sun.star.table.BorderLine2")
       frame.setPropertyValue("LineStyle", border_line_style)
 
-      if alignment == "center":
+      if alignment == "left":
+          frame.HoriOrient = 3
+          frame.RightMargin = 300
+          frame.TextWrap = RIGHT
+          frame.Surround = RIGHT
+      elif alignment == "right":
+          frame.HoriOrient = 1
+          frame.LeftMargin = 300
+          frame.TextWrap = LEFT
+          frame.Surround = LEFT
+      elif alignment == "center":
           frame.AnchorType = AS_CHARACTER
 
           previous_adjustment = self._cursor.ParaAdjust
