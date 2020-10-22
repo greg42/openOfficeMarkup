@@ -578,6 +578,12 @@ class Renderer(object):
           frame.TextWrap = LEFT
           frame.Surround = LEFT
       elif alignment == "center":
+          # Before changing the order of the following commands please ensure
+          # that the order of multiple images is ensured. E.g if two half page
+          # sized images are followed by a full page sized image.
+          frame.TextWrap = NONE
+          frame.Surround = NONE
+          frame.AllowOverlap = False
           frame.AnchorType = AS_CHARACTER
 
           previous_adjustment = self._cursor.ParaAdjust
