@@ -480,6 +480,8 @@ class Renderer(object):
       graph = self._realDocument.createInstance("com.sun.star.text.TextGraphicObject")
       graph.AnchorType = AS_CHARACTER
 
+      border_line_style = uno.createUnoStruct("com.sun.star.table.BorderLine2")
+      graph.setPropertyValue("LineStyle", border_line_style)
       if align == "left":
          graph.HoriOrient = 0
          graph.RightMargin = 300
@@ -580,10 +582,8 @@ class Renderer(object):
       frame.VertOrient = graph.VertOrient
       frame.VertOrientPosition = graph.VertOrientPosition
 
-      border_line = frame.getPropertyValue("LeftBorder")
-      border_line.OuterLineWidth = 0
-      border_line.LineWidth = 0
-      frame.setPropertyValue("LineStyle", border_line)
+      border_line_style = uno.createUnoStruct("com.sun.star.table.BorderLine2")
+      frame.setPropertyValue("LineStyle", border_line_style)
 
       if alignment == "center":
           frame.AnchorType = AS_CHARACTER
