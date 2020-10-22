@@ -478,6 +478,7 @@ class Renderer(object):
       # Now insert the image, *NOT* using the source from the internal
       # bitmap table, but instead using the external URL.
       graph = self._realDocument.createInstance("com.sun.star.text.TextGraphicObject")
+      graph.AnchorType = AS_CHARACTER
 
       if align == "left":
          graph.HoriOrient = 0
@@ -488,9 +489,6 @@ class Renderer(object):
          graph.HoriOrient = 1
          graph.LeftMargin = 300
          graph.TextWrap = LEFT
-
-      if inline:
-         graph.AnchorType = AS_CHARACTER
 
       self._document.Text.insertTextContent(self._cursor, graph, False)
 
