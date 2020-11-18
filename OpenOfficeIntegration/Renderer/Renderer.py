@@ -825,6 +825,12 @@ class Renderer(object):
 
             self.render(cellContent)
 
+            # If a table cell ends in an empty paragraph try to remove the
+            # leading paragraph break to avoid the unnecessary empty line.
+            if self._cursor.isStartOfParagraph():
+                self._cursor.goLeft(1, True)
+                self._cursor.setString("")
+
             self._document = oldDoc
             self._cursor = oldCur
    
