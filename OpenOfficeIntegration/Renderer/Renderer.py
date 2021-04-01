@@ -69,6 +69,7 @@ class Renderer(object):
       self._realDocument = document
 
       self._cursor.ParaStyleName = self.STYLE_STANDARD_TEXT
+      self._cursor.CharStyleName = "Default Character Style"
 
    def handleCustomMetaContainer(self, properties, content):
       raise NotImplementedError
@@ -374,15 +375,30 @@ class Renderer(object):
       self._cursor.ParaStyleName = newStyle
       return old
 
-   def changeCharProperty(self, property_type, value):
-      property_name = property_type.value
+   def restorePropertySet(self, properties):
+      for (name, value) in properties:
+         if value in [None, "", (), []] \
+            or (name in ["ParaAutoStyleName", "CharAutoStyleName"] and value == "0"):
 
-      old = self._cursor.getPropertyValue(property_name)
+            self._cursor.setPropertyToDefault(name)
+         else:
+            self._cursor.setPropertyValue(name, value)
+
+   def getCurrentPropertySet(self):
+       properties = [
+           x.Name
+           for x in self._cursor.getPropertySetInfo().getProperties()
+           if not x.Attributes & 0x10 # filter out any property marked as ReadOnly
+               and x.Name != "ParaTabStops" # seems like this property always fails
+       ]
+
+       return list(zip(properties, self._cursor.getPropertyValues(properties)))
+
+   def changeCharProperty(self, property_type, value):
+      old = self.getCurrentPropertySet()
 
       if value:
-          self._cursor.setPropertyValue(property_name, value)
-      else:
-          self._cursor.setPropertyToDefault(property_name)
+         self._cursor.setPropertyValue(property_type.value, value)
 
       return old
 
@@ -624,9 +640,9 @@ class Renderer(object):
       def footnote_hook(item):
           is_footnote = type(item) is dict and item.get("ItemMetaTag", {}).get("type") == "footnote"
           if is_footnote:
-             old_name = self.changeCharProperty(CharProp.StyleName, self.STYLE_FOOTNOTE_ANCHOR)
+             old_properties = self.changeCharProperty(CharProp.StyleName, self.STYLE_FOOTNOTE_ANCHOR)
              self.insertString(',')
-             self.changeCharProperty(CharProp.StyleName, old_name)
+             self.restorePropertySet(old_properties)
           else:
               smart_space_hook(item)
 
@@ -871,34 +887,34 @@ class Renderer(object):
       self.CurrentHeading = (headingLevel, headingText, headingNumber)
 
    def insertBoldFace(self, text):
-      old_cw = self.changeCharProperty(CharProp.Weight, BOLD)
+      old_properties = self.changeCharProperty(CharProp.Weight, BOLD)
       self.render(text)
-      self.changeCharProperty(CharProp.Weight, old_cw)
+      self.restorePropertySet(old_properties)
 
    def insertItalicFace(self, text):
-      old_cw = self.changeCharProperty(CharProp.Posture, ITALIC)
+      old_properties = self.changeCharProperty(CharProp.Posture, ITALIC)
       self.render(text)
-      self.changeCharProperty(CharProp.Posture, old_cw)
+      self.restorePropertySet(old_properties)
 
    def insertSourceCode(self, text):
       self.insert_paragraph_character(avoid_empty_paragraph=True)
-      oldStyle = self.changeParaStyle(self.STYLE_SOURCE_CODE)
+      old_properties = self.changeParaStyle(self.STYLE_SOURCE_CODE)
    
       self._inSource = True
       self.render(text)
    
       self.insert_paragraph_character(avoid_empty_paragraph=True)
-      self.changeParaStyle(oldStyle)
+      self.restorePropertySet(old_properties)
       self._inSource = False
 
    def insertQuote(self, text):
       self.insert_paragraph_character(avoid_empty_paragraph=True)
-      oldStyle = self.changeParaStyle(self.STYLE_QUOTE)
+      old_properties = self.changeParaStyle(self.STYLE_QUOTE)
    
       self.render(text)
    
       self.insert_paragraph_character(avoid_empty_paragraph=True)
-      self.changeParaStyle(oldStyle)
+      self.restorePropertySet(old_properties)
 
    def insertInlineQuote(self, content):
       if self.needSpace():
@@ -924,10 +940,10 @@ class Renderer(object):
       if self.needSpace():
          self.insertString(' ')
 
-      old_name = self.changeCharProperty(CharProp.StyleName, self.STYLE_INLINE_SOURCE_CODE)
+      old_properties = self.changeCharProperty(CharProp.StyleName, self.STYLE_INLINE_SOURCE_CODE)
       self.render(text)
       self.smartSpace(skip_if=lambda cursor, word: word == "s" or cursor.isStartOfParagraph())
-      self.changeCharProperty(CharProp.StyleName, old_name)
+      self.restorePropertySet(old_properties)
 
    def insertParagraph(self, text):
       self.render(text)
