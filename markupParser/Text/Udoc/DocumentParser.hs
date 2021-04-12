@@ -580,6 +580,7 @@ wordChar = do
             <|> (try $ escaped '"')
             <|> (try $ escaped '\\')
             <|> (try $ escaped '`')
+            <|> (try $ escaped '#')
             <|> (noneOf $ " \t\n[]|{}\"" ++ additional)
             <?> "a valid word character"
    
