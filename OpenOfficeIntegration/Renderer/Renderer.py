@@ -373,7 +373,7 @@ class Renderer(object):
    def changeParaStyle(self, newStyle):
       old = self._cursor.ParaStyleName
       self._cursor.ParaStyleName = newStyle
-      return old
+      return [("ParaStyleName", old)]
 
    def restorePropertySet(self, properties):
       for (name, value) in properties:
