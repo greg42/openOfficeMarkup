@@ -395,6 +395,7 @@ class Renderer(object):
            for x in self._cursor.getPropertySetInfo().getProperties()
            if not x.Attributes & 0x10 # filter out any property marked as ReadOnly
                and x.Name != "ParaTabStops" # seems like this property always fails
+               and x.Name != "CharHeight" # this one we never touch
        ]
 
        return list(zip(properties, self._cursor.getPropertyValues(properties)))
