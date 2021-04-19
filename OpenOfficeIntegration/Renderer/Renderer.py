@@ -180,6 +180,7 @@ class Renderer(object):
       if self.currentListLevel == 0:
          self.insert_paragraph_character(avoid_empty_paragraph=True)
          self._cursor.ParaStyleName = oldName
+         self._cursor.NumberingStyleName = ''
 
    def renderOlist(self, olist):
       nl = 1
@@ -193,6 +194,7 @@ class Renderer(object):
       if self.currentListLevel == 0:
          self.insert_paragraph_character(avoid_empty_paragraph=True)
          self._cursor.ParaStyleName = oldName
+         self._cursor.NumberingStyleName = ''
 
    def renderContainer(self, container):
       containerType = container['type']
