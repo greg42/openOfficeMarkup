@@ -582,7 +582,7 @@ wordChar = do
             <|> (try $ escaped '\\')
             <|> (try $ escaped '`')
             <|> (try $ escaped '#')
-            <|> (noneOf $ " \t\n[]|{}\"" ++ additional)
+            <|> (satisfy (\x -> isPrint x && x `notElem` " \t\n[]|{}\"" ++ additional))
             <?> "a valid word character"
    
 -- | Parses a whole word in the text of the document.
@@ -594,8 +594,19 @@ word = do result <- many1 wordChar
 -- | Contents of a source code section. Note that spaces, newlines and
 -- tabs will be left as they are. However, the bold tag is supported!
 verbatimContent :: String -> IParse DocumentItem
-verbatimContent closingTag = 
-   try (verbatimBold closingTag) <|> (verbatimText closingTag)
+verbatimContent closingTag =
+   let
+      getContent:: DocumentItem -> String
+      getContent item = extractWords [item]
+
+      isValid :: String -> Bool
+      isValid content = any (liftA2 (&&) isControl (not . isSpace)) content
+   in do
+   result <- try (verbatimBold closingTag) <|> (verbatimText closingTag)
+
+   if isValid (getContent result)
+      then fail ("Unprintable Control Chracter Detected: " ++ (getContent result))
+      else return result
 
 -- | Helper for bold text in verbatim content
 verbatimBold ::   String -- ^ The tag that will close the verbatim section.
