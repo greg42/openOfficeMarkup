@@ -112,9 +112,11 @@ class Renderer(object):
    def renderBoldFace(self, items):
       if self.needSpace() and not self._inSource:
          self.insertString(' ')
+
       self.insertBoldFace(items)
+
       if not self._inSource:
-          self.smartSpace()
+         self.smartSpace(skip_if=lambda cursor, word: word in ["s", "'s"] or cursor.isStartOfParagraph())
 
    def renderItalicFace(self, items):
       if self.needSpace():
