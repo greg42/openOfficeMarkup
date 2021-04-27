@@ -121,7 +121,7 @@ class Renderer(object):
          self.insertString(' ')
 
       self.insertItalicFace(items)
-      self.smartSpace()
+      self.smartSpace(skip_if=lambda cursor, word: word in ["s", "'s"] or cursor.isStartOfParagraph())
 
    def renderParagraph(self, items):
       self.insertParagraph(items)
