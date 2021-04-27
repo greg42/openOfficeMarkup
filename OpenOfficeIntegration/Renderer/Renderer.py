@@ -948,7 +948,7 @@ class Renderer(object):
 
       old_properties = self.changeCharProperty(CharProp.StyleName, self.STYLE_INLINE_SOURCE_CODE)
       self.render(text)
-      self.smartSpace(skip_if=lambda cursor, word: word == "s" or cursor.isStartOfParagraph())
+      self.smartSpace(skip_if=lambda cursor, word: word in ["s", "'s"] or cursor.isStartOfParagraph())
       self.restorePropertySet(old_properties)
 
    def insertParagraph(self, text):
