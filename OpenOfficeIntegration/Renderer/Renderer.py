@@ -382,6 +382,9 @@ class Renderer(object):
 
    def restorePropertySet(self, properties):
       for (name, value) in properties:
+         if self._cursor.getPropertyValue(name) == value:
+             continue
+
          if value in [None, "", (), []] \
             or (name in ["ParaAutoStyleName", "CharAutoStyleName"] and value == "0"):
 
