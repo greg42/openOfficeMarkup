@@ -55,11 +55,12 @@ type SyntaxFlavor = [SyntaxOption]
 data ParserState = ParserState {
     parserStateFlavor               :: SyntaxFlavor
   , parserStateLastInlineOpeningTag :: Char
+  , parserStateCurrentListLevel     :: Int
 }
 
 -- | A parser state without any syntax options set
 defaultParserState :: ParserState
-defaultParserState = ParserState [] '{'
+defaultParserState = ParserState [] '{' 0
 
 -- | Indentation sensitive parser
 type IParse r = ParsecT String ParserState (State SourcePos) r
@@ -754,9 +755,12 @@ uList :: HSP -> IParse DocumentItem
 uList hsp = do
    checkIndent
    lookAhead (uListItemBegin)
+   s <- P.getState 
+   P.setState $ s { parserStateCurrentListLevel = parserStateCurrentListLevel s + 1 }
    result <- block $ uListItem hsp
+   P.setState $ s { parserStateCurrentListLevel = parserStateCurrentListLevel s }
    eatSpaces <- isOptionSet SkipNewlinesAfterUlist
-   when eatSpaces $ skipEmptyLines
+   when (parserStateCurrentListLevel s == 0 && eatSpaces) $ skipEmptyLines
    return $ ItemDocumentContainer (DocumentUList result)
 
 -- | The begin of an item in an ordered list. Returns the indentation level
