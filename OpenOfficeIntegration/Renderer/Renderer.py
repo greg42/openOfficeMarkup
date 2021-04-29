@@ -819,6 +819,7 @@ class Renderer(object):
 
       if not style or style == 'head_top' or style == '':
          table.RepeatHeadline = True
+
       text.insertTextContent(self._cursor, table, 0)
    
       for numRow, row in enumerate(tableContent):
@@ -830,6 +831,8 @@ class Renderer(object):
             elif numCol == 0 and (style == 'head_left' or style == 'matrix'):
                cell.BackColor = self.STYLE_TABLE_HEADING_BACKGROUND
                self.setParStyle(cell, self.STYLE_TABLE_HEADER)
+            elif  style == 'plain':
+               self.setParStyle(cell, self.STYLE_TABLE_CONTENT)
             else:
                self.setParStyle(cell, self.STYLE_TABLE_CONTENT)
    
