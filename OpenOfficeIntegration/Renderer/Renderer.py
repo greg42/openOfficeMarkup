@@ -26,6 +26,7 @@ from com.sun.star.text.ReferenceFieldSource import BOOKMARK, REFERENCE_MARK, SEQ
 from com.sun.star.text.SetVariableType import SEQUENCE
 from com.sun.star.text.WrapTextMode import NONE, DYNAMIC, PARALLEL, LEFT, RIGHT
 from com.sun.star.style.ParagraphAdjust import CENTER
+from com.sun.star.beans.PropertyState import DEFAULT_VALUE
 
 # ---------------------------------------------------------
 # Setup hacks ...
@@ -403,7 +404,13 @@ class Renderer(object):
                and x.Name != "CharHeight" # this one we never touch
        ]
 
-       return list(zip(properties, self._cursor.getPropertyValues(properties)))
+       def getVal(propName):
+           if self._cursor.getPropertyState(propName) == DEFAULT_VALUE:
+              return None
+           else:
+              return self._cursor.getPropertyValue(propName)
+
+       return list(zip(properties, map(getVal, properties)))
 
    def changeCharProperty(self, property_type, value):
       old = self.getCurrentPropertySet()
