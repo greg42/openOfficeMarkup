@@ -112,16 +112,18 @@ class Renderer(object):
    def renderBoldFace(self, items):
       if self.needSpace() and not self._inSource:
          self.insertString(' ')
+
       self.insertBoldFace(items)
+
       if not self._inSource:
-          self.smartSpace()
+         self.smartSpace(skip_if=lambda cursor, word: word in ["s", "'s"] or cursor.isStartOfParagraph())
 
    def renderItalicFace(self, items):
       if self.needSpace():
          self.insertString(' ')
 
       self.insertItalicFace(items)
-      self.smartSpace()
+      self.smartSpace(skip_if=lambda cursor, word: word in ["s", "'s"] or cursor.isStartOfParagraph())
 
    def renderParagraph(self, items):
       self.insertParagraph(items)
@@ -951,7 +953,7 @@ class Renderer(object):
 
       old_properties = self.changeCharProperty(CharProp.StyleName, self.STYLE_INLINE_SOURCE_CODE)
       self.render(text)
-      self.smartSpace(skip_if=lambda cursor, word: word == "s" or cursor.isStartOfParagraph())
+      self.smartSpace(skip_if=lambda cursor, word: word in ["s", "'s"] or cursor.isStartOfParagraph())
       self.restorePropertySet(old_properties)
 
    def insertParagraph(self, text):
