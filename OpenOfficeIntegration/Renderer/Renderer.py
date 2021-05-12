@@ -382,6 +382,9 @@ class Renderer(object):
 
    def restorePropertySet(self, properties):
       for (name, value) in properties:
+         if self._cursor.getPropertyValue(name) == value:
+             continue
+
          if value in [None, "", (), []] \
             or (name in ["ParaAutoStyleName", "CharAutoStyleName"] and value == "0"):
 
@@ -869,7 +872,7 @@ class Renderer(object):
          self.insertString(caption)
 
          self.insert_paragraph_character(avoid_empty_paragraph=True)
-         self.changeParaStyle(oldStyle)
+         self.restorePropertySet(oldStyle)
 
          # Remember the number of the current table so that later we'll
          # be able to reference it properly.
