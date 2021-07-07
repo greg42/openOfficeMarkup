@@ -778,7 +778,7 @@ newOlistItemBegin :: IParse (Int, String)
 newOlistItemBegin = do
    i <- many $ char ' '
    string "+"
-   spaces
+   many1 space
    return ((length i), "0")
 
 -- | The old version of ordered lists start with dotted numbers followed
