@@ -829,8 +829,6 @@ class Renderer(object):
       table = self._realDocument.createInstance("com.sun.star.text.TextTable")
       table.initialize(numRows, numCols)
 
-      if not style or style == 'head_top' or style == '':
-         table.RepeatHeadline = True
       text.insertTextContent(self._cursor, table, 0)
    
       for numRow, row in enumerate(tableContent):
@@ -870,6 +868,9 @@ class Renderer(object):
            def f(self):
                 self.optimalTableWidth(table)
            self.doAfterRendering(f)
+
+      if not style or style == 'head_top' or style == '':
+         table.RepeatHeadline = True
 
       if caption != None and labelName != None:
          CAPTION_TITLE=self.i18n['table']
