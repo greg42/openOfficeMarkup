@@ -73,7 +73,11 @@ class Renderer(object):
       try:
            self._cursor.CharStyleName = "Default Character Style"
       except:
+           pass
+      try:
            self._cursor.CharStyleName = "Default Style"
+      except:
+           self._cursor.CharStyleName = "No Character Style"
 
    def handleCustomMetaContainer(self, properties, content):
       raise NotImplementedError
