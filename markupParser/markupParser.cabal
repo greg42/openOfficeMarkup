@@ -23,6 +23,7 @@ library
                        , json >=0.7
                        , transformers >=0.3
                        , indents >=0.3 && < 0.4
+                       , split >=0.2
 
 Executable parseUdoc
   Main-is:           parseUdoc.hs
@@ -34,3 +35,4 @@ Executable parseUdoc
                      , transformers >=0.3
                      , indents >=0.3 && < 0.4
                      , markupParser
+                     , split >=0.2
