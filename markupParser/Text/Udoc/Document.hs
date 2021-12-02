@@ -55,7 +55,7 @@ showJSON' (Just x) = showJSON x
 showJSON' Nothing = JSNull
 
 {-| Lookup the JSValue of a map key that may not exist. -}
-mLookup :: (Monad m) => String -> [(String, b)] -> m b
+mLookup :: (MonadFail m) => String -> [(String, b)] -> m b
 mLookup a as = maybe (fail $ "No such element: " ++ a) return (lookup a as)
 
 instance JSON DocumentContainer where
