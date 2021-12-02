@@ -23,3 +23,24 @@ And [b]here[/b] is something in bold. And a line[br]
 break. Escaping also works: \[foobar\]
 
 ## Now we have a section with a real long headline. The question is: will it be rendered corrently?
+
+[source]
+Unnumbered source
+code
+.
+[/source]
+
+[source numbers=True, firstnumber=9, range="9-14,18-20,15-16"]
+numbered source 09
+numbered source 10
+foo. 11
+bar. 12
+the 13
+the 14
+the 15
+the 16
+the 17
+the 18
+the 19
+the 20
+[/source]
