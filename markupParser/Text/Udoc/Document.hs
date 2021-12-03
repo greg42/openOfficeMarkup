@@ -17,6 +17,9 @@ Stability   : experimental
 
 This module contains all the udoc-related data types.
 -}
+
+{-# LANGUAGE CPP #-}
+
 module Text.Udoc.Document 
    (DocumentItem(..), OListItem(..), UListItem(..), Heading(..),
     DocumentContainer(..), DocumentImage(..),
@@ -55,7 +58,11 @@ showJSON' (Just x) = showJSON x
 showJSON' Nothing = JSNull
 
 {-| Lookup the JSValue of a map key that may not exist. -}
+#if MIN_VERSION_base(4,13,0)
+mLookup :: (MonadFail m) => String -> [(String, b)] -> m b
+#else
 mLookup :: (Monad m) => String -> [(String, b)] -> m b
+#endif
 mLookup a as = maybe (fail $ "No such element: " ++ a) return (lookup a as)
 
 instance JSON DocumentContainer where
