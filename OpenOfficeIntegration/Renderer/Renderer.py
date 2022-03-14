@@ -865,6 +865,8 @@ class Renderer(object):
             elif numCol == 0 and (style == 'head_left' or style == 'matrix'):
                cell.BackColor = self.STYLE_TABLE_HEADING_BACKGROUND
                self.setParStyle(cell, self.STYLE_TABLE_HEADER)
+            elif  style == 'plain':
+               self.setParStyle(cell, self.STYLE_TABLE_CONTENT)
             else:
                self.setParStyle(cell, self.STYLE_TABLE_CONTENT)
    
