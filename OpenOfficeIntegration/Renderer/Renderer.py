@@ -649,7 +649,23 @@ class Renderer(object):
       self.render(content)
 
    def insertString(self, text):
-      self._document.Text.insertString(self._cursor, text, False)
+       if any(not (c.isprintable() or c.isspace()) for c in text):
+           encoded_text = ''.join([
+               char if (char.isprintable() or char.isspace()) else ''.join([
+                   f'\\x{byte.encode("UTF-8").hex()}'
+                   for byte in char
+               ])
+               for char in text
+           ])
+
+           raise RuntimeError(
+               "The following text snippet contains unprintable characters!\n\n"
+               f"{text}\n\n"
+               "A Solution might be to replace those characters with hex sequences, e.g.:\n\n"
+               f"{encoded_text}\n"
+           )
+
+       self._document.Text.insertString(self._cursor, text, False)
 
    def insertFootnote(self, content):
       fn = self._realDocument.createInstance("com.sun.star.text.Footnote")
