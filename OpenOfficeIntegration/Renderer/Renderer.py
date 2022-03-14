@@ -748,6 +748,15 @@ class Renderer(object):
 
       need_space = self.needSpace()
 
+      # Stores a reference on the current document
+      #
+      # This ensures that the following callback actually refers to the same
+      # document as the current function. This is required as it is possible
+      # that the current document is a reference on a specific table cell. Such
+      # a reference would no longer exist during the invokation of the following
+      # callback.
+      actual_document = self._document
+
       def do_insert_imageref(self):
          if name not in self.Images:
             raise RuntimeError('Unknown image %s' % name)
@@ -760,15 +769,15 @@ class Renderer(object):
 
          # Inserting the space and the field in reverse content, because the
          # "cursor" is not going to be updated on these operations.
-         where = self._document.getBookmarks().getByName(refName).getAnchor()
+         where = self._realDocument.getBookmarks().getByName(refName).getAnchor()
          where.setString("")
 
-         self._document.Text.insertTextContent(where, field, False)
+         actual_document.Text.insertTextContent(where, field, False)
          if need_space:
-            self._document.Text.insertString(where, " ", False)
+            actual_document.Text.insertString(where, " ", False)
 
-         self._document.getTextFields().refresh()
-         self._document.refresh()
+         self._realDocument.getTextFields().refresh()
+         self._realDocument.refresh()
 
       self.doAfterRendering(do_insert_imageref)
 
@@ -782,6 +791,15 @@ class Renderer(object):
 
       need_space = self.needSpace()
 
+      # Stores a reference on the current document
+      #
+      # This ensures that the following callback actually refers to the same
+      # document as the current function. This is required as it is possible
+      # that the current document is a reference on a specific table cell. Such
+      # a reference would no longer exist during the invokation of the following
+      # callback.
+      actual_document = self._document
+
       def do_insert_tableref(self):
          if name not in self.Tables:
              raise RuntimeError('Unknown table %s' % name)
@@ -790,20 +808,23 @@ class Renderer(object):
          field.ReferenceFieldPart = ReferenceFieldPart.CATEGORY_AND_NUMBER
          field.ReferenceFieldSource = SEQUENCE_FIELD
          field.SourceName = self.i18n['table']
+
          if not name in self.Tables:
             raise RuntimeError('Unknown table %s' % name)
-         field.SequenceNumber = self.Tables[name]
+         else:
+            field.SequenceNumber = self.Tables[name]
+
          # Inserting the space and the field in reverse content, because the
          # "cursor" is not going to be updated on these operations.
-         where = self._document.getBookmarks().getByName(refName).getAnchor()
+         where = self._realDocument.getBookmarks().getByName(refName).getAnchor()
          where.setString("")
 
-         self._document.Text.insertTextContent(where, field, False)
+         actual_document.Text.insertTextContent(where, field, False)
          if need_space:
-            self._document.Text.insertString(where, " ", False)
+            actual_document.Text.insertString(where, " ", False)
 
-         self._document.getTextFields().refresh()
-         self._document.refresh()
+         self._realDocument.getTextFields().refresh()
+         self._realDocument.refresh()
 
       self.doAfterRendering(do_insert_tableref)
 
