@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-7.24
+resolver: lts-20.16
 compiler-check: newer-minor
 
 # User packages to be built.
@@ -40,7 +40,9 @@ packages:
 - .
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
-# extra-deps: []
+extra-deps:
+  - indents-0.3.3
+  - concatenative-1.0.1
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

@@ -259,7 +259,7 @@ optRename optKeyName aList =
 -- all required and optional arguments from a list. The obtained arguments will
 -- be renamed and then a function will be invoked on both resulting argument
 -- lists. The result of the function will be returned.
-getArgumentsOrFail ::    (Monad m, Eq a, Show a) => 
+getArgumentsOrFail ::    (Monad m, MonadFail m, Eq a, Show a) => 
                          [(a, b)] -- ^ A renaming pair for the mandatory args
                       -> [(a, b)] -- ^ A renaming pair for the optional args
                       -> [(a, c)] -- ^ An association list
@@ -278,7 +278,7 @@ getArgumentsOrFail mandArgs optArgs aList f =
       Just m'  -> return $ f m' opt
 
 {-| Lookup a required tag attribute that may not exist. -}
-mLookup :: (Show a, Monad m, Eq a) => a -> [(a , b)] -> String -> m b
+mLookup :: (Show a, Monad m, MonadFail m, Eq a) => a -> [(a , b)] -> String -> m b
 mLookup k al error_message = maybe (fail error_message) return $ lookup k al
 
 -- | Creates an ItemMetaTag from the following data: a tag name, the list
@@ -293,7 +293,7 @@ createMetaTag t mprops oprops = ItemMetaTag $ [("type", t)] ++ mprops ++ oprops
 -- function will lookup all mandatory and optional arguments from the argument
 -- list that has been supplied. If this worked out, it will return an
 -- ItemMetaTag.
-handleMetaTag ::    (Monad m, Show a, Eq a) => 
+handleMetaTag ::    (Monad m, MonadFail m, Show a, Eq a) => 
                     String -- ^ The name of the tag type
                  -> [(a, String)] -- ^ Mandatory tag arguments
                  -> [(a, String)] -- ^ Optional tag arguments
