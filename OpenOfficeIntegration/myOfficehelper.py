@@ -61,8 +61,11 @@ class OpenOfficeInstance(object):
         os.remove(self._pidfile)
 
    def getContext(self):
+      steps = 20
+      if "OOO_START_TIMEOUT" in os.environ:
+          steps = 2 * int(os.environ["OOO_START_TIMEOUT"])
       context = None
-      for _ in range(20):
+      for _ in range(steps):
           try:
               context = self._resolver.resolve("uno:pipe,name=markupRendererPipe;urp;StarOffice.ComponentContext")
               break
