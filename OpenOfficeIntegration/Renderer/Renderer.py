@@ -406,6 +406,7 @@ class Renderer(object):
            if not x.Attributes & 0x10 # filter out any property marked as ReadOnly
                and x.Name != "ParaTabStops" # seems like this property always fails
                and x.Name != "CharHeight" # this one we never touch
+               and x.Name != "NoFormatAttr" # newer LibreOffice versions fail on this as well
        ]
 
        def getVal(propName):
