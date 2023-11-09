@@ -1047,9 +1047,9 @@ class Renderer(object):
 class VanillaRenderer(Renderer):
    def __init__(self):
       Renderer.__init__(self)
-      self.STYLE_STANDARD_TEXT       = "Text body"
-      self.STYLE_FIGURE_CAPTION      = "Text body"
-      self.STYLE_TABLE_CAPTION       = "Text body"
+      self.STYLE_STANDARD_TEXT       = "Body Text"
+      self.STYLE_FIGURE_CAPTION      = "Body Text"
+      self.STYLE_TABLE_CAPTION       = "Body Text"
       self.STYLE_LIST_1              = "List 1"
       self.STYLE_NUMBERING_1         = "Numbering 1"
       self.STYLE_TITLE               = "Title"
@@ -1058,10 +1058,10 @@ class VanillaRenderer(Renderer):
       self.STYLE_TABLE_HEADER_LEFT   = "Table Heading"
       self.STYLE_TABLE_CONTENT       = "Table Contents"
       self.STYLE_PARAM_HEADING       = "Heading %d"
-      self.STYLE_TERMS               = "Text body"
+      self.STYLE_TERMS               = "Body Text"
       self.STYLE_SOURCE_CODE         = "Source Code"
-      self.STYLE_QUOTE               = "Quotations"
-      self.STYLE_INLINE_SOURCE_CODE  = "Source Code"
+      self.STYLE_QUOTE               = "Block Quotation"
+      self.STYLE_INLINE_SOURCE_CODE  = "Source Text"
       self.STYLE_FOOTNOTE_ANCHOR     = "Footnote Anchor"
       self.STYLE_TABLE_HEADING_BACKGROUND = 11111111
       self.custom_i18n['en'] = {
