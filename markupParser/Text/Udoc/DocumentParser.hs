@@ -53,9 +53,9 @@ data SyntaxOption = SkipNewlinesAfterUlist
 type SyntaxFlavor = [SyntaxOption]
 
 data ParserState = ParserState {
-    parserStateFlavor               :: SyntaxFlavor
-  , parserStateLastInlineOpeningTag :: Char
-  , parserStateCurrentListLevel     :: Int
+    parserStateFlavor               :: !SyntaxFlavor
+  , parserStateLastInlineOpeningTag :: !Char
+  , parserStateCurrentListLevel     :: !Int
 }
 
 -- | A parser state without any syntax options set
@@ -513,7 +513,7 @@ table' ml table = do
 tableAppend :: Bool -> [String] -> [[String]] -> ([[String]], Bool)
 tableAppend ml l table
    | not ml && isDelimiter l && null table = (table, True)
-   | not ml && isDelimiter l = (foldl (zipWith (\a b -> a ++ b ++ "\n")) emptyRow table : [take (length $ head table) emptyRow], True)
+   | not ml && isDelimiter l = (foldl' (zipWith (\a b -> a ++ b ++ "\n")) emptyRow table : [take (length $ head table) emptyRow], True)
    | ml && isDelimiter l = (table ++ [take (length $ head table) emptyRow], True)
    | not ml = (table ++ [l], False)
    | ml && not (null table) = (init table ++ [zipWith (\a b -> a ++ b ++ "\n") (last table) l], True)
@@ -535,7 +535,7 @@ paragraph hsp = do
     bq <- isOptionSet BlockQuotes
     fc <- isOptionSet FencedCodeBlocks
     let without = [(bq, blockQuoteBegin), (fc, fencedCodeBlockBegin)]
-    let withouts = foldl (\p (flag, parser) -> if flag then p <|> try parser else p) parserZero without
+    let withouts = foldl' (\p (flag, parser) -> if flag then p <|> try parser else p) parserZero without
     paragraphWithout withouts hsp
 
 -- | Parse a paragraph. This Paragraph could contain a list of words or lists or

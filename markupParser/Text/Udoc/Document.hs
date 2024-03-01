@@ -37,16 +37,16 @@ import           Data.List
 {-| A container for other document items. A container is something that has
     a content. You can think of a container as something similar to an
     environment in LaTeX. -}
-data DocumentContainer =   DocumentHeading   Heading [DocumentItem]
-                         | DocumentBoldFace  [DocumentItem]
-                         | DocumentItalicFace [DocumentItem]
-                         | DocumentParagraph [DocumentItem]
-                         | DocumentOList     [(OListItem, [DocumentItem])]
-                         | DocumentUList     [(UListItem, [DocumentItem])]
-                         | DocumentTableRow  [[DocumentItem]]
-                         | DocumentTable     String (Maybe (String, String)) [Float]
-                                             [DocumentContainer]
-                         | DocumentMetaContainer [(String,String)] [DocumentItem]
+data DocumentContainer =   DocumentHeading    !Heading ![DocumentItem]
+                         | DocumentBoldFace   ![DocumentItem]
+                         | DocumentItalicFace ![DocumentItem]
+                         | DocumentParagraph  ![DocumentItem]
+                         | DocumentOList      ![(OListItem, [DocumentItem])]
+                         | DocumentUList      ![(UListItem, [DocumentItem])]
+                         | DocumentTableRow   ![[DocumentItem]]
+                         | DocumentTable      !String !(Maybe (String, String)) ![Float]
+                                              ![DocumentContainer]
+                         | DocumentMetaContainer ![(String,String)] ![DocumentItem]
                          deriving(Show, Eq)
 
 {-| Convert an optional value into the related JSValue. -}
@@ -150,11 +150,11 @@ instance JSON DocumentContainer where
 {-| A DocumentItem can be anything that is part of a document. This includes
     simple entities such as words or images, but also containers such as tables
     or paragraphs. -}
-data DocumentItem =   ItemWord String
-                    | ItemDocumentContainer DocumentContainer
-                    | ItemImage DocumentImage
+data DocumentItem =   ItemWord !String
+                    | ItemDocumentContainer !DocumentContainer
+                    | ItemImage !DocumentImage
                     | ItemLinebreak
-                    | ItemMetaTag [(String, String)]
+                    | ItemMetaTag ![(String, String)]
                     deriving(Show, Eq)
 
 instance JSON DocumentItem where
@@ -195,11 +195,11 @@ instance JSON DocumentItem where
    readJSON x = fail $ "Cannot decode JSON item: " ++ show x
 
 {-| An item in an ordered list -}
-data OListItem = OListItem {   oListItemIndent  :: Int -- ^ The indentation level
-                             , oListItemNumber  :: String -- ^ The number of the
-                                                          -- item. This is
-                                                          -- something like
-                                                          -- 1.2.3.
+data OListItem = OListItem {   oListItemIndent  :: !Int -- ^ The indentation level
+                             , oListItemNumber  :: !String -- ^ The number of the
+                                                           -- item. This is
+                                                           -- something like
+                                                           -- 1.2.3.
                            } deriving(Show, Eq)
 
 instance JSON OListItem where
@@ -228,8 +228,8 @@ instance JSON UListItem where
       return $ UListItem indent
 
 {-| A heading -}
-data Heading = Heading {   headingLevel :: Int -- ^ The heading level
-                         , headingComputedNumber :: Maybe [Int]
+data Heading = Heading {   headingLevel :: !Int -- ^ The heading level
+                         , headingComputedNumber :: !(Maybe [Int])
                            -- ^ A heading can have a computed heading number,
                            -- such as 1.2.3. This is useful for generating
                            -- a table of contents or for referencing sections
@@ -252,11 +252,11 @@ instance JSON Heading where
 
 {-| An image in a document -}
 data DocumentImage = Image {
-                        imageFilename  :: String -- ^ The file name of the image
-                      , imageCaption   :: String -- ^ The image's caption
-                      , imageLabel     :: String -- ^ A label for referencing the image
-                      , imageScaling   :: String -- ^ An expected scaling factor (Default: 1.0)
-                      , imageAlignment :: String -- ^ The alignment (Default: center)
+                        imageFilename  :: !String -- ^ The file name of the image
+                      , imageCaption   :: !String -- ^ The image's caption
+                      , imageLabel     :: !String -- ^ A label for referencing the image
+                      , imageScaling   :: !String -- ^ An expected scaling factor (Default: 1.0)
+                      , imageAlignment :: !String -- ^ The alignment (Default: center)
                      } deriving(Show, Eq)
 
 instance JSON DocumentImage where
