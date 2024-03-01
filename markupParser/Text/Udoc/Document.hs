@@ -18,7 +18,7 @@ Stability   : experimental
 This module contains all the udoc-related data types.
 -}
 module Text.Udoc.Document
-   (DocumentItem(..), OListItem(..), UListItem(..), Heading(..),
+   (DocumentItem(..), RawDocumentItem(..), OListItem(..), UListItem(..), Heading(..),
     DocumentContainer(..), DocumentImage(..),
     computeHeadingNumbers, generateToc,
     filterItems, transformDocument, extractWords)
@@ -30,6 +30,7 @@ import           Control.Monad.State
 import           Data.Maybe
 import           Control.Applicative
 import           Data.List
+import           Text.Parsec.Pos
 
 
 ------------------------ Data Definitions -----------------------------
@@ -150,14 +151,14 @@ instance JSON DocumentContainer where
 {-| A DocumentItem can be anything that is part of a document. This includes
     simple entities such as words or images, but also containers such as tables
     or paragraphs. -}
-data DocumentItem =   ItemWord !String
-                    | ItemDocumentContainer !DocumentContainer
-                    | ItemImage !DocumentImage
-                    | ItemLinebreak
-                    | ItemMetaTag ![(String, String)]
-                    deriving(Show, Eq)
+data RawDocumentItem =   ItemWord !String
+                       | ItemDocumentContainer !DocumentContainer
+                       | ItemImage !DocumentImage
+                       | ItemLinebreak
+                       | ItemMetaTag ![(String, String)]
+                       deriving(Show, Eq)
 
-instance JSON DocumentItem where
+instance JSON RawDocumentItem where
    showJSON (ItemWord x) =
        makeObj [ ("type", showJSON "ItemWord"), ("ItemWord", showJSON x) ]
 
@@ -194,13 +195,56 @@ instance JSON DocumentItem where
                                             show objType
    readJSON x = fail $ "Cannot decode JSON item: " ++ show x
 
+data DocumentItem = DocumentItem {
+    getRawItem  :: !RawDocumentItem
+  , getStartPos :: !SourcePos
+  , getEndPos   :: !SourcePos
+} deriving (Show, Eq)
+
+instance JSON SourcePos where
+    showJSON pos =
+       makeObj [ ("source", showJSON $ sourceName pos)
+               , ("line", showJSON $ sourceLine pos)
+               , ("column", showJSON $ sourceColumn pos)
+               ]
+
+    readJSON (JSObject obj) =
+       let assoc = fromJSObject obj
+           getOne x = mLookup x assoc >>= readJSON
+       in do
+          name <- getOne "source"
+          line <- getOne "line"
+          col  <- getOne "column"
+          return $ newPos name line col
+    readJSON x = fail $ "Cannot decode JSON item: " ++ show x
+
+instance JSON DocumentItem where
+    showJSON (DocumentItem rawItem start end) =
+       let JSObject obj = showJSON rawItem
+           itemObject = fromJSObject obj
+       in  makeObj $ itemObject ++ [
+                         ("start", showJSON start)
+                       , ("end", showJSON end)
+                       ]
+
+    readJSON (JSObject obj) = 
+       let assoc = fromJSObject obj
+           getOne x = mLookup x assoc >>= readJSON
+       in do
+          item <- readJSON (JSObject obj)
+          start <- getOne "start"
+          end <- getOne "end"
+          return $ DocumentItem item start end
+    readJSON x = fail $ "Cannot decode JSON item: " ++ show x
+
 {-| An item in an ordered list -}
-data OListItem = OListItem {   oListItemIndent  :: !Int -- ^ The indentation level
-                             , oListItemNumber  :: !String -- ^ The number of the
-                                                           -- item. This is
-                                                           -- something like
-                                                           -- 1.2.3.
-                           } deriving(Show, Eq)
+data OListItem = OListItem {
+    oListItemIndent  :: !Int -- ^ The indentation level
+  , oListItemNumber  :: !String -- ^ The number of the
+                                -- item. This is
+                                -- something like
+                                -- 1.2.3.
+} deriving(Show, Eq)
 
 instance JSON OListItem where
    showJSON oli = makeObj [   ("indent", showJSON $ oListItemIndent oli)
@@ -215,8 +259,9 @@ instance JSON OListItem where
       return $ OListItem indent number
 
 {-| An item in an un-ordered (bullet point) list -}
-data UListItem = UListItem { uListItemIndent  :: Int -- ^ The item's indent
-                           } deriving(Show, Eq)
+newtype UListItem = UListItem {
+    uListItemIndent :: Int -- ^ The item's indent
+} deriving (Show, Eq)
 
 instance JSON UListItem where
    showJSON uli = makeObj [ ("indent", showJSON $ uListItemIndent uli) ]
@@ -228,13 +273,13 @@ instance JSON UListItem where
       return $ UListItem indent
 
 {-| A heading -}
-data Heading = Heading {   headingLevel :: !Int -- ^ The heading level
-                         , headingComputedNumber :: !(Maybe [Int])
-                           -- ^ A heading can have a computed heading number,
-                           -- such as 1.2.3. This is useful for generating
-                           -- a table of contents or for referencing sections
-                           -- in a document.
-                       } deriving(Show, Eq)
+data Heading = Heading {
+    headingLevel :: !Int -- ^ The heading level
+  , headingComputedNumber :: !(Maybe [Int]) -- ^ A heading can have a computed heading number,
+                                            -- such as 1.2.3. This is useful for generating
+                                            -- a table of contents or for referencing sections
+                                            -- in a document.
+} deriving(Show, Eq)
 
 instance JSON Heading where
    showJSON hd  = makeObj [  ("level", showJSON $ headingLevel hd)
@@ -252,12 +297,12 @@ instance JSON Heading where
 
 {-| An image in a document -}
 data DocumentImage = Image {
-                        imageFilename  :: !String -- ^ The file name of the image
-                      , imageCaption   :: !String -- ^ The image's caption
-                      , imageLabel     :: !String -- ^ A label for referencing the image
-                      , imageScaling   :: !String -- ^ An expected scaling factor (Default: 1.0)
-                      , imageAlignment :: !String -- ^ The alignment (Default: center)
-                     } deriving(Show, Eq)
+    imageFilename  :: !String -- ^ The file name of the image
+  , imageCaption   :: !String -- ^ The image's caption
+  , imageLabel     :: !String -- ^ A label for referencing the image
+  , imageScaling   :: !String -- ^ An expected scaling factor (Default: 1.0)
+  , imageAlignment :: !String -- ^ The alignment (Default: center)
+} deriving(Show, Eq)
 
 instance JSON DocumentImage where
    showJSON (Image filename caption label scaling alignment) =
@@ -304,7 +349,7 @@ nestingLevel level = do
                    else put $ incrementLastNumber tmpStack
    gets head
 
-computeHeadingNumbers' :: [DocumentItem] -> State NestedStack [DocumentItem]
+computeHeadingNumbers' :: [RawDocumentItem] -> State NestedStack [RawDocumentItem]
 computeHeadingNumbers' [] = return []
 computeHeadingNumbers' ( (ItemDocumentContainer (DocumentHeading (Heading level _) content) ):rest) = do
    computedNumber <- nestingLevel level
@@ -316,7 +361,7 @@ computeHeadingNumbers' (x:rest) = do rest' <- computeHeadingNumbers' rest
 
 {-| Computes the heading numbers and returns a new document where all heading
     have a headingComputedNumber. -}
-computeHeadingNumbers :: [DocumentItem] -> [DocumentItem]
+computeHeadingNumbers :: [RawDocumentItem] -> [RawDocumentItem]
 computeHeadingNumbers x = evalState (computeHeadingNumbers' x) [[-1]]
 
 ------------------------- Generating a TOC ----------------------------
@@ -330,7 +375,7 @@ headingNumber :: [Int] -> String
 headingNumber level = intercalate "." $ map (show . (+1)) level
 
 headingToToc :: DocumentItem -> Maybe (OListItem, [DocumentItem])
-headingToToc (ItemDocumentContainer (DocumentHeading (Heading _ cn) headline)) =
+headingToToc (DocumentItem { getRawItem = ItemDocumentContainer (DocumentHeading (Heading _ cn) headline)}) =
     let indent   = headingIndent <$> cn
         num      = headingNumber <$> cn
         minnm    = (,) <$> indent <*> num
@@ -342,7 +387,7 @@ headingToToc _ = Nothing
 
 {-| Generates a table of contents for a document. It returns the table of
     contents as a DocumentOList. -}
-generateToc :: [DocumentItem] -> DocumentItem
+generateToc :: [DocumentItem] -> RawDocumentItem
 generateToc document = ItemDocumentContainer $
                          DocumentOList $ mapMaybe headingToToc document
 
@@ -353,32 +398,32 @@ filterHelper :: (a -> Bool) -> a -> [a]
 filterHelper func item = [item | func item]
 
 {-| Returns all elements in the document with func(element) == True. -}
-flatRecurse :: ([DocumentItem] -> [a]) -> DocumentContainer -> [a]
-flatRecurse func (DocumentHeading _ content) =
+flatRecurse :: ([DocumentItem] -> [a]) -> SourcePos -> SourcePos -> DocumentContainer -> [a]
+flatRecurse func _ _ (DocumentHeading _ content) =
    func content
 
-flatRecurse func (DocumentBoldFace content) =
+flatRecurse func _ _ (DocumentBoldFace content) =
    func content
 
-flatRecurse func (DocumentItalicFace content) =
+flatRecurse func _ _ (DocumentItalicFace content) =
   func content
 
-flatRecurse func (DocumentParagraph content) =
+flatRecurse func _ _ (DocumentParagraph content) =
    func content
 
-flatRecurse func (DocumentOList content) =
+flatRecurse func _ _ (DocumentOList content) =
    concatMap (func . snd) content
 
-flatRecurse func (DocumentUList content) =
+flatRecurse func _ _ (DocumentUList content) =
    concatMap (func . snd) content
 
-flatRecurse func (DocumentTableRow content) =
+flatRecurse func _ _ (DocumentTableRow content) =
    func (concat content)
 
-flatRecurse func (DocumentTable _ _ _ content) =
-   func (map ItemDocumentContainer content)
+flatRecurse func start end (DocumentTable _ _ _ content) =
+   func (map (\x -> DocumentItem { getRawItem = ItemDocumentContainer x, getStartPos = start, getEndPos = end }) content)
 
-flatRecurse func (DocumentMetaContainer _ content) =
+flatRecurse func _ _ (DocumentMetaContainer _ content) =
    func content
 
 {-| FilterItems will recursively walk through the whole
@@ -388,10 +433,10 @@ filterItems ::   (DocumentItem -> Bool) -- ^ The filter function
               -> [DocumentItem] -- ^ The document
               -> [DocumentItem] -- ^ The resulting document
 filterItems _ [] = []
-filterItems func (item:items) =
-   case item of
+filterItems func (item@DocumentItem { getRawItem = rawItem, getStartPos = start, getEndPos = end}:items) =
+   case rawItem of
       ItemDocumentContainer dc -> filterHelper func item ++
-                                  flatRecurse (filterItems func) dc ++
+                                  flatRecurse (filterItems func) start end dc ++
                                   filterItems func items
       _ -> filterHelper func item ++
            filterItems func items
@@ -428,17 +473,18 @@ transformDocument ::   (DocumentItem -> DocumentItem) -- ^ The transformation fu
                     -> [DocumentItem] -- ^ The document
                     -> [DocumentItem] -- ^ The resulting document
 transformDocument _ [] = []
-transformDocument func (item:items) =
-   case item of
-      ItemDocumentContainer dc -> let container = if func item == item
-                                                     then ItemDocumentContainer $ deepRecurse (transformDocument func) dc
-                                                     else func item
-                                  in (container : transformDocument func items)
+transformDocument func (item@DocumentItem {getRawItem = rawItem, getStartPos = start, getEndPos = end}:items) =
+   case rawItem of
+      ItemDocumentContainer dc ->
+          let container = if func item == item
+                             then DocumentItem { getStartPos = start, getEndPos = end, getRawItem = ItemDocumentContainer $ deepRecurse (transformDocument func) dc }
+                             else func item
+          in (container : transformDocument func items)
       _ -> func item : transformDocument func items
 
 -- | Extracts the textual content from a udoc document
 extractWords :: [DocumentItem] -> String
-extractWords = unwords . mapMaybe collectWords
+extractWords = unwords . mapMaybe (collectWords . getRawItem)
     where collectWords (ItemWord x) = Just x
           collectWords (ItemDocumentContainer (DocumentHeading _ dis)) = Just $ extractWords dis
           collectWords (ItemDocumentContainer (DocumentBoldFace dis)) = Just $ extractWords dis
@@ -447,9 +493,8 @@ extractWords = unwords . mapMaybe collectWords
           collectWords (ItemDocumentContainer (DocumentOList oli)) = Just $ intercalate "\n" $ map (extractWords . snd) oli
           collectWords (ItemDocumentContainer (DocumentUList uli)) = Just $ intercalate "\n" $ map (extractWords . snd) uli
           collectWords (ItemDocumentContainer (DocumentTableRow dis)) = Just $ unwords $ map extractWords dis
-          collectWords (ItemDocumentContainer (DocumentTable _ _ _ cs)) = Just $ extractWords $ map ItemDocumentContainer cs
+          collectWords (ItemDocumentContainer (DocumentTable _ _ _ cs)) = Just $ unwords $ mapMaybe (collectWords . ItemDocumentContainer) cs
           collectWords (ItemDocumentContainer (DocumentMetaContainer _ dis)) = Just $ extractWords dis
           collectWords (ItemImage x)   = Nothing
           collectWords ItemLinebreak   = Just "\n"
           collectWords (ItemMetaTag _) = Nothing
-

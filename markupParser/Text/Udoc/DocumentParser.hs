@@ -67,7 +67,7 @@ type IParse r = ParsecT String ParserState (State SourcePos) r
 
 -- | The type for HandleSpecialCommand: Takes a name, arguments and returns
 -- a new parser 
-type HSP = String -> [(String, String)] -> IParse DocumentItem
+type HSP = String -> [(String, String)] -> IParse RawDocumentItem
 
 -- | Returns whether or not a parsing option is set.
 isOptionSet :: SyntaxOption -> IParse Bool
@@ -85,15 +85,23 @@ whenOptionSet opt act = do
 -- is a tuple consisting of the command name and the command arguments.
 type Command = (String, [(String, String)])
 
+annotated :: IParse RawDocumentItem -> IParse DocumentItem
+annotated parser = do
+    startPos <- getPosition
+    item <- parser
+    endPos <- getPosition
+    return $ DocumentItem item startPos endPos
+
 -- | Parse a udoc document and return the document items.
 parseDocument :: ParserState -> HSP -> String -> Either ParseError ([DocumentItem], ParserState)
 parseDocument initialState hsp = myParse id parser
    where myParse f p src = fst
                            $ flip runState (f $ initialPos "")
                            $ runParserT p initialState "" src
-         parser = do items <- documentItems hsp
-                     s     <- P.getState
-                     return (items, s)
+         parser = do
+             items <- documentItems hsp
+             s     <- P.getState
+             return (items, s)
 
 -- | Parse an inline udoc document and return the document items (e.g. to
 -- | parse table cells). In case of an error use the given initial source
@@ -159,7 +167,7 @@ documentItems hsp = do
     where tryCommand pred = try $ do
              cmd <- extendedCommand hsp
              optional newline
-             if pred cmd
+             if pred $ getRawItem cmd
                 then return cmd
                 else fail "Did not find expected command"
           isMetaTag (ItemMetaTag _) = True
@@ -200,8 +208,10 @@ command = do
 
 -- | A command surrounded by square brackets. 
 squareBrCommand :: IParse Command
-squareBrCommand =
-   between (char '[') (char ']') (do ret <- command; spaces; return ret)
+squareBrCommand = between (char '[') (char ']') $ do
+    ret <- command
+    spaces
+    return ret
 
 -- | Some text surrounded by curly brackets. This will internally be
 -- represented as a command called "_s" (for source code)
@@ -284,7 +294,7 @@ mLookup k al error_message = maybe (fail error_message) return $ lookup k al
 createMetaTag ::    String -- ^ The name of the tag type
                  -> [(String, String)] -- ^ The mandatory properties
                  -> [(String, String)] -- ^ The optional properties
-                 -> DocumentItem -- ^ The resulting document item
+                 -> RawDocumentItem -- ^ The resulting document item
 createMetaTag t mprops oprops = ItemMetaTag $ [("type", t)] ++ mprops ++ oprops
 
 -- | Tries to create a meta tag specified by is name. To create the tag, this
@@ -296,33 +306,33 @@ handleMetaTag ::    (Monad m, MonadFail m, Show a, Eq a) =>
                  -> [(a, String)] -- ^ Mandatory tag arguments
                  -> [(a, String)] -- ^ Optional tag arguments
                  -> [(a, String)] -- ^ The parsed tag arguments
-                 -> m DocumentItem -- ^ The resulting item
+                 -> m RawDocumentItem -- ^ The resulting item
 handleMetaTag t mand opt aList =
    getArgumentsOrFail mand opt aList (createMetaTag t)
 
 -- | Checks that all required arguments are present and then creates the
 -- meta tag with the type label.
-handleLab :: [(String, String)] -> IParse DocumentItem
+handleLab :: [(String, String)] -> IParse RawDocumentItem
 handleLab = handleMetaTag "label" [("name", "name")] []
 
 -- | Checks that all required arguments are present and then creates the
 -- meta tag with the type ref.
-handleRef :: [(String, String)] -> IParse DocumentItem
+handleRef :: [(String, String)] -> IParse RawDocumentItem
 handleRef = handleMetaTag "ref" [("label", "label")] [("style", "style")]
 
 -- | Checks that all required arguments are present and then creates the
 -- meta tag with the type imgref.
-handleImgRef :: [(String, String)] -> IParse DocumentItem
+handleImgRef :: [(String, String)] -> IParse RawDocumentItem
 handleImgRef = handleMetaTag "imgref" [("label", "label")] []
 
 -- | Checks that all required arguments are present and then creates the
 -- meta tag with the type tblref.
-handleTblRef :: [(String, String)] -> IParse DocumentItem
+handleTblRef :: [(String, String)] -> IParse RawDocumentItem
 handleTblRef = handleMetaTag "tblref" [("label", "label")] []
 
 -- | Handles the "setpos" tag, which is used internally to signal
 -- the parser that the current 'SourcePos' changed.
-handleSetPos :: [(String, String)] -> IParse DocumentItem
+handleSetPos :: [(String, String)] -> IParse RawDocumentItem
 handleSetPos args = do
     ifHave "filename" args $ \filename ->
        modifySourcePos $ flip setSourceName filename
@@ -338,7 +348,7 @@ handleSetPos args = do
 
 -- | Handles the flavor command, which can be used to activate markup
 -- extensions.
-handleFlavor :: [(String, String)] -> IParse DocumentItem
+handleFlavor :: [(String, String)] -> IParse RawDocumentItem
 handleFlavor args = do
     tag <- handleMetaTag "flavor" [("name", "name")] [] args
     case lookup "name" args >>= readMaybe of
@@ -351,7 +361,7 @@ handleFlavor args = do
 createMetaContainer ::    String -- ^ The container type
                        -> [(String, String)] -- ^ The container properties
                        -> [DocumentItem] -- ^ The container content
-                       -> DocumentItem -- ^ The resulting item
+                       -> RawDocumentItem -- ^ The resulting item
 createMetaContainer t props content =
    ItemDocumentContainer $ DocumentMetaContainer (("type", t) : props) content
 
@@ -362,7 +372,7 @@ extendedCommand' = inlineSource <|> inlineQuote <|> squareBrCommand
 
 -- | This parses a command and handles it accordingly.
 extendedCommand :: HSP -> IParse DocumentItem
-extendedCommand hsp = do
+extendedCommand hsp = annotated $ do
    (name, args) <- spaces >> extendedCommand'
    handleExtendedCommand name args hsp
 
@@ -381,7 +391,7 @@ removeTrailingNewline :: [DocumentItem] -> [DocumentItem]
 removeTrailingNewline [] = []
 removeTrailingNewline items =
    init items ++ nl (last items)
-   where nl (ItemWord w) = [ItemWord $ dropWhileEnd isSpace w]
+   where nl item@DocumentItem { getRawItem = ItemWord w } = [item { getRawItem = ItemWord $ dropWhileEnd isSpace w}]
          nl x = [x]
 
 -- | Handle an extended command. This is called once a command
@@ -390,95 +400,101 @@ removeTrailingNewline items =
 handleExtendedCommand ::    String -- ^ The command name
                          -> [(String, String)] -- ^ The command's arguments
                          -> HSP -- ^ The supported special commands
-                         -> IParse DocumentItem
+                         -> IParse RawDocumentItem
 handleExtendedCommand name args handleSpecialCommand =
    case name of
-      "b"      -> do skipEmptyLines
-                     bold <- containerContentsUntil (extendedCommandName "/b")
-                                                    handleSpecialCommand
-                     return $ ItemDocumentContainer $ DocumentBoldFace bold
-      "i"      -> do skipEmptyLines
-                     italic <- containerContentsUntil (extendedCommandName "/i") handleSpecialCommand
-                     return $ ItemDocumentContainer $ DocumentItalicFace italic
-      "br"     -> return ItemLinebreak
-      "meta"   -> return $ ItemMetaTag args
-      "pb"     -> return $ ItemMetaTag [("type", "pagebreak")]
+      "b" -> do
+          skipEmptyLines
+          bold <- containerContentsUntil (extendedCommandName "/b")
+                                         handleSpecialCommand
+          return $ ItemDocumentContainer $ DocumentBoldFace bold
+      "i" -> do
+          skipEmptyLines
+          italic <- containerContentsUntil (extendedCommandName "/i") handleSpecialCommand
+          return $ ItemDocumentContainer $ DocumentItalicFace italic
+      "br" -> return ItemLinebreak
+      "meta" -> return $ ItemMetaTag args
+      "pb" -> return $ ItemMetaTag [("type", "pagebreak")]
+      "image" -> do
+          let scaling = fromMaybe "1" $ lookup "scaling" args
+          let alignment = fromMaybe "center" $ lookup "align" args
+          label   <- mLookup "label"   args "Missing label in image tag"
+          caption <- mLookup "caption" args "Missing caption in image tag"
+          path    <- mLookup "path"    args "Missing path in image tag"
+          eatSpaces <- isOptionSet SkipNewlinesAfterImage
+          when eatSpaces skipEmptyLines
+          return $ ItemImage $ Image path caption label scaling alignment
+      "inlineImage" -> do
+          let vOffset = fromMaybe "0" $ lookup "vOffset" args
+          path <- mLookup "path" args "Missing path in inlineImage tag"
+          return $ ItemMetaTag [
+             ("type", "inlineImage")
+           , ("path", path)
+           , ("vOffset", vOffset)
+           ]
+      "table"  -> do
+          let mCL = (,) <$> lookup "caption" args <*> lookup "label" args
+          let style = fromMaybe "head_top" $ lookup "style" args
+          let mWidths = mapM (readMaybe . filter (/= ' ')) (split ',' $ fromMaybe "" $ lookup "widths" args)
+          widths <- case mWidths of
+                      Nothing -> fail "Cannot parse table widths argument."
+                      Just w -> return w
+          skipEmptyLines
 
-      "image"  -> do let scaling = fromMaybe "1" $ lookup "scaling" args
-                         alignment = fromMaybe "center" $ lookup "align" args
-                     label   <- mLookup "label"   args "Missing label in image tag"
-                     caption <- mLookup "caption" args "Missing caption in image tag"
-                     path    <- mLookup "path"    args "Missing path in image tag"
-                     eatSpaces <- isOptionSet SkipNewlinesAfterImage
-                     when eatSpaces skipEmptyLines
-                     return $ ItemImage $ Image path caption label scaling alignment
+          -- We need the position of the first row  as `table` is
+          -- going to parse the whole table at once.
+          currentPosition <- P.getPosition
+          currentState <- P.getState
 
-      "inlineImage" -> do let vOffset = fromMaybe "0" $ lookup "vOffset" args
-                          path <- mLookup "path" args "Missing path in inlineImage tag"
-                          return $ ItemMetaTag [
-                              ("type", "inlineImage")
-                            , ("path", path)
-                            , ("vOffset", vOffset)
-                            ]
+          rows <- table
 
-      "table"  -> do let mCL = (,) <$> lookup "caption" args <*> lookup "label" args
-                     let style = fromMaybe "head_top" $ lookup "style" args
-                     let mWidths = mapM (readMaybe . filter (/= ' ')) (split ',' $ fromMaybe "" $ lookup "widths" args)
-                     widths <- case mWidths of
-                                     Nothing -> fail "Cannot parse table widths argument."
-                                     Just w -> return w
-                     skipEmptyLines
-
-                     -- We need the position of the first row  as `table` is
-                     -- going to parse the whole table at once.
-                     currentPosition <- P.getPosition
-                     currentState <- P.getState
-
-                     rows <- table
-
-                     -- We simply apply our document parser to each table
-                     -- cell.
-                     rows <- forM rows $ \row -> do
-                         cells <- forM row $ \cell -> do
-                            case parseInlineDocument currentState currentPosition handleSpecialCommand cell of
-                               Left err -> error $ "Error while parsing the table which is located at " ++ show currentPosition ++ ".\n\n" ++ show err
-                               Right (inner, newS) -> do P.setState newS
-                                                         return $ concatMap stripOuterParagraph inner
-                         return $ DocumentTableRow cells
-                     return $ ItemDocumentContainer $ DocumentTable style mCL widths rows
-      "_s"     -> do x <- parserStateLastInlineOpeningTag <$> P.getState
-                     let chr = case x of
-                                  '{' -> '}'
-                                  '`' -> '`'
-                                  x   -> x
-                     source <- manyTill inlineVerbatimContent (char chr >> spaces)
-                     return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "inlineSource")] source
+          -- We simply apply our document parser to each table
+          -- cell.
+          rows <- forM rows $ \row -> do
+             cells <- forM row $ \cell -> do
+                case parseInlineDocument currentState currentPosition handleSpecialCommand cell of
+                   Left err -> error $ "Error while parsing the table which is located at " ++ show currentPosition ++ ".\n\n" ++ show err
+                   Right (inner, newS) -> do
+                      P.setState newS
+                      return $ concatMap stripOuterParagraph inner
+             return $ DocumentTableRow cells
+          return $ ItemDocumentContainer $ DocumentTable style mCL widths rows
+      "_s" -> do
+          x <- parserStateLastInlineOpeningTag <$> P.getState
+          let chr = case x of
+                      '{' -> '}'
+                      '`' -> '`'
+                      x   -> x
+          source <- manyTill inlineVerbatimContent (char chr >> spaces)
+          return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "inlineSource")] source
 
       "_q"     -> handleInlineQuote handleSpecialCommand
-      "source" -> do let language = fromMaybe "" $ lookup "language" args
-                     skipEmptyLines
-                     source <- manyTill (verbatimContent "[/source]") (extendedCommandName "/source")
-                     eatSpaces <- isOptionSet SkipNewlinesAfterSourceOrQuoteBlock
-                     when eatSpaces skipEmptyLines
-                     return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "source"), ("language", language)] (removeTrailingNewline source)
+      "source" -> do
+          let language = fromMaybe "" $ lookup "language" args
+          skipEmptyLines
+          source <- manyTill (verbatimContent "[/source]") (extendedCommandName "/source")
+          eatSpaces <- isOptionSet SkipNewlinesAfterSourceOrQuoteBlock
+          when eatSpaces skipEmptyLines
+          return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "source"), ("language", language)] (removeTrailingNewline source)
       "label"  -> handleLab args
       "ref"    -> handleRef args
       "imgref" -> handleImgRef args
       "tblref" -> handleTblRef args
       "setpos" -> handleSetPos args
-      "quote"  -> do optional newline
-                     content <- manyTill (verbatimContent "[/quote]") (extendedCommandName "/quote")
-                     eatSpaces <- isOptionSet SkipNewlinesAfterSourceOrQuoteBlock
-                     when eatSpaces skipEmptyLines
-                     return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "blockquote")] (removeTrailingNewline content)
+      "quote"  -> do
+          optional newline
+          content <- manyTill (verbatimContent "[/quote]") (extendedCommandName "/quote")
+          eatSpaces <- isOptionSet SkipNewlinesAfterSourceOrQuoteBlock
+          when eatSpaces skipEmptyLines
+          return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "blockquote")] (removeTrailingNewline content)
       "flavor" -> handleFlavor args
 
       -- If we end up here, we can at least check if the
       -- identified command is some special-purpose
       -- command
-      _         -> handleSpecialCommand name args
+      _ -> handleSpecialCommand name args
    where stripOuterParagraph :: DocumentItem -> [DocumentItem]
-         stripOuterParagraph (ItemDocumentContainer (DocumentParagraph x)) = x
+         stripOuterParagraph (DocumentItem { getRawItem = ItemDocumentContainer (DocumentParagraph x) }) = x
          stripOuterParagraph x = [x]
          split :: Eq a => a -> [a] -> [[a]]
          split d [] = []
@@ -543,7 +559,7 @@ paragraph hsp = do
 paragraphWithout ::    IParse () -- ^ The parser that may not succeed
                     -> HSP -- ^ The supported special commands
                     -> IParse DocumentItem
-paragraphWithout x hsp = do
+paragraphWithout x hsp = annotated $ do
    lines <- many1 (  notFollowedBy x >>
                      (
                            (do x <- try $ line hsp; optional newline; return x)
@@ -584,9 +600,10 @@ wordChar = do
 
 -- | Parses a whole word in the text of the document.
 word :: IParse DocumentItem
-word = do result <- many1 wordChar
-          spaces
-          return $ ItemWord result
+word = annotated $ do
+    result <- many1 wordChar
+    spaces
+    return $ ItemWord result
 
 -- | Contents of a source code section. Note that spaces, newlines and
 -- tabs will be left as they are. However, the bold tag is supported!
@@ -598,7 +615,7 @@ verbatimContent closingTag =
 verbatimBold ::   String -- ^ The tag that will close the verbatim section.
                          -- could be [/code] for example.
                -> IParse DocumentItem
-verbatimBold closingTag = do
+verbatimBold closingTag = annotated $ do
    string "[b]"
    bold <- manyTill (verbatimText closingTag) (extendedCommandName "/b")
    return $ ItemDocumentContainer $ DocumentBoldFace bold
@@ -607,7 +624,7 @@ verbatimBold closingTag = do
 -- we handle [b] and [/b], in order to allow for bold parts in source
 -- code.
 verbatimText :: String -> IParse DocumentItem
-verbatimText closingTag = do
+verbatimText closingTag = annotated $ do
    result <- many1 (
                       (
                          (
@@ -631,13 +648,13 @@ verbatimText closingTag = do
 -- | Contents of the inline verbatim container - may basically be everything
 -- besides { or }, which need to be escaped.
 inlineVerbatimContent :: IParse DocumentItem
-inlineVerbatimContent = do
+inlineVerbatimContent = annotated $ do
    result <- many1 (wordChar <|> oneOf "\n\t |\"[]")
    return $ ItemWord result
 
 -- | Contents of the inline quoted text container - may basically be everything
 -- besides ", which needs to be escaped.
-handleInlineQuote :: HSP -> IParse DocumentItem
+handleInlineQuote :: HSP -> IParse RawDocumentItem
 handleInlineQuote hsp = do
    text <- containerContentsUntil closingQuote hsp
    return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "inlineQuote")] text
@@ -692,7 +709,7 @@ removeLastPara l =
 -- return the Paragraph contents. Otherwise simply return the DocumentItem
 -- that has been provided.
 removePara :: DocumentItem -> [DocumentItem]
-removePara (ItemDocumentContainer (DocumentParagraph l)) = l
+removePara (DocumentItem { getRawItem = ItemDocumentContainer (DocumentParagraph l) }) = l
 removePara x = [x]
 
 -- | Read container content until parser x succeeds. This will generally
@@ -747,7 +764,7 @@ uListItem hsp =
 
 -- | Am un-ordered (bullet point) list
 uList :: HSP -> IParse DocumentItem
-uList hsp = do
+uList hsp = annotated $ do
    checkIndent
    lookAhead uListItemBegin
    s <- P.getState
@@ -788,18 +805,18 @@ oldOlistItemBegin = do
 
 -- | One item in an ordered list
 oListItem :: HSP -> IParse (OListItem, [DocumentItem])
-oListItem hsp =
-   do (ind, num) <- oListItemBegin
-      content <- block (containerContentBlock hsp)
-      return (OListItem ind num, concat content)
+oListItem hsp = do
+    (ind, num) <- oListItemBegin
+    content <- block (containerContentBlock hsp)
+    return (OListItem ind num, concat content)
 
 -- | An ordered list. 
 oList :: HSP -> IParse DocumentItem
-oList hsp =
-   do checkIndent
-      lookAhead oListItemBegin
-      items <- block $ oListItem hsp
-      return $ ItemDocumentContainer (DocumentOList items)
+oList hsp = annotated $ do
+   checkIndent
+   lookAhead oListItemBegin
+   items <- block $ oListItem hsp
+   return $ ItemDocumentContainer (DocumentOList items)
 
 -- | A number like 1, 1.2 or 1.2.3.4
 dottedNumber :: IParse String
@@ -827,7 +844,7 @@ headingBegin = do
 
 -- | A heading
 heading :: HSP -> IParse DocumentItem
-heading hsp = do
+heading hsp = annotated $ do
     level <- headingBegin
     content <- many1 (
              (
@@ -847,14 +864,17 @@ blockQuoteBegin = do
 
 -- | A block quote
 blockQuote :: IParse DocumentItem
-blockQuote = do
+blockQuote = annotated $ do
+    start <- getPosition
     lines <- many1 $ do
        blockQuoteBegin
        thisLine <- many $ noneOf "\n"
        optional newline
        return thisLine
+    end <- getPosition
     skipEmptyLines
-    return $ ItemDocumentContainer $ DocumentMetaContainer [("type","blockquote")] [ItemWord $ intercalate "\n" lines]
+    return $ ItemDocumentContainer $ DocumentMetaContainer [("type","blockquote")]
+                                     [DocumentItem { getRawItem = ItemWord $ intercalate "\n" lines, getStartPos = start, getEndPos = end }]
 
 -- | The start of a fenced code block
 fencedCodeBlockBegin :: IParse ()
@@ -864,16 +884,19 @@ fencedCodeBlockBegin = do
 
 -- | A fenced code block
 fencedCodeBlock :: IParse DocumentItem
-fencedCodeBlock = do
+fencedCodeBlock = annotated $ do
     fencedCodeBlockBegin
     language <- many $ noneOf "\n"
     newline
+    start <- getPosition
     lines <- many $ do
        notFollowedBy $ string "```"
        thisLine <- many $ noneOf "\n"
        newline
        return thisLine
+    end <- getPosition
     string "```"
     newline
     skipEmptyLines
-    return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "source"), ("language", language)] [ItemWord $ intercalate "\n" lines]
+    return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "source"), ("language", language)]
+                                     [DocumentItem { getRawItem = ItemWord $ intercalate "\n" lines, getStartPos = start, getEndPos = end}]
