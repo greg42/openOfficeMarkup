@@ -1,1 +1,1 @@
-To build, just type cabal build. Then install with cabal install.
+To build, please use `stack build`.
