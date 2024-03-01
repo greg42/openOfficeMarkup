@@ -17,7 +17,7 @@ Stability   : experimental
 
 This module contains all the udoc-related data types.
 -}
-module Text.Udoc.Document 
+module Text.Udoc.Document
    (DocumentItem(..), OListItem(..), UListItem(..), Heading(..),
     DocumentContainer(..), DocumentImage(..),
     computeHeadingNumbers, generateToc,
@@ -65,7 +65,7 @@ instance JSON DocumentContainer where
                , ("content", showJSON items)
               ]
 
-   showJSON (DocumentBoldFace items) = 
+   showJSON (DocumentBoldFace items) =
       makeObj [  ("type", showJSON "DocumentBoldFace")
                , ("content", showJSON items)
               ]
@@ -75,22 +75,22 @@ instance JSON DocumentContainer where
               , ("content", showJSON items)
               ]
 
-   showJSON (DocumentParagraph items) = 
+   showJSON (DocumentParagraph items) =
       makeObj [  ("type", showJSON "DocumentParagraph")
                , ("content", showJSON items)
               ]
 
-   showJSON (DocumentOList items) = 
+   showJSON (DocumentOList items) =
       makeObj [  ("type", showJSON "DocumentOList")
                , ("content", showJSON items)
               ]
 
-   showJSON (DocumentUList items) = 
+   showJSON (DocumentUList items) =
       makeObj [  ("type", showJSON "DocumentUList")
                , ("content", showJSON items)
               ]
 
-   showJSON (DocumentTable style mCL widths items) = 
+   showJSON (DocumentTable style mCL widths items) =
       makeObj [  ("type", showJSON "DocumentTable")
                , ("content", showJSON items)
                , ("caption", showJSON' $ fst <$> mCL)
@@ -99,12 +99,12 @@ instance JSON DocumentContainer where
                , ("widths", showJSON widths)
               ]
 
-   showJSON (DocumentTableRow items) = 
+   showJSON (DocumentTableRow items) =
       makeObj [  ("type", showJSON "DocumentTableRow")
                , ("content", showJSON items)
               ]
 
-   showJSON (DocumentMetaContainer properties items) = 
+   showJSON (DocumentMetaContainer properties items) =
       makeObj [  ("type", showJSON "DocumentMetaContainer")
                , ("properties", showJSON $ toJSObject properties)
                , ("content", showJSON items)
@@ -112,15 +112,15 @@ instance JSON DocumentContainer where
 
    readJSON (JSObject obj) = let
      jsonObjAssoc = fromJSObject obj
-     getOne  x    = (mLookup x jsonObjAssoc) >>= readJSON
-     getOne' x    = case (lookup x jsonObjAssoc) of
-                      Just (JSNull) -> return Nothing
-                      Just (x)      -> Just <$> readJSON x
-                      Nothing       -> return Nothing
+     getOne  x    = mLookup x jsonObjAssoc >>= readJSON
+     getOne' x    = case lookup x jsonObjAssoc of
+                      Just JSNull -> return Nothing
+                      Just x      -> Just <$> readJSON x
+                      Nothing     -> return Nothing
     in do
       objType <- getOne "type"
       case objType of
-         "DocumentHeading"        -> DocumentHeading    <$> (getOne objType) <*>
+         "DocumentHeading"        -> DocumentHeading    <$> getOne objType <*>
                                                             getOne "content"
          "DocumentBoldFace"       -> DocumentBoldFace   <$> getOne "content"
          "DocumentItalicFace"     -> DocumentItalicFace <$> getOne "content"
@@ -132,17 +132,17 @@ instance JSON DocumentContainer where
                                         label   <- getOne' "label"
                                         style   <- getOne "style"
                                         widths  <- getOne "widths"
-                                        return $ DocumentTable 
-                                                   style 
-                                                   (((,)) <$> caption <*> label) 
+                                        return $ DocumentTable
+                                                   style
+                                                   ((,) <$> caption <*> label)
                                                    widths
                                                    thing
          "DocumentTableRow"       -> DocumentTableRow  <$> getOne "content"
-         "DocumentMetaContainer"  -> DocumentMetaContainer <$> 
-                                             (fromJSObject <$> 
-                                                 getOne "properties") <*> 
+         "DocumentMetaContainer"  -> DocumentMetaContainer <$>
+                                             (fromJSObject <$>
+                                                 getOne "properties") <*>
                                              getOne "content"
-         _                        -> fail $ "Unknown object type: " ++ 
+         _                        -> fail $ "Unknown object type: " ++
                                                 show objType
    readJSON x = fail $ "Cannot decode JSON item: " ++ show x
 
@@ -158,39 +158,39 @@ data DocumentItem =   ItemWord String
                     deriving(Show, Eq)
 
 instance JSON DocumentItem where
-   showJSON (ItemWord x) = 
+   showJSON (ItemWord x) =
        makeObj [ ("type", showJSON "ItemWord"), ("ItemWord", showJSON x) ]
 
-   showJSON (ItemDocumentContainer c) = 
+   showJSON (ItemDocumentContainer c) =
        makeObj [  ("type", showJSON "ItemDocumentContainer")
-                , ("ItemDocumentContainer", showJSON c) 
+                , ("ItemDocumentContainer", showJSON c)
                ]
 
-   showJSON (ItemMetaTag t) = 
-      makeObj [  ("type", showJSON "ItemMetaTag") 
-               , ("ItemMetaTag", showJSON $ toJSObject t) 
+   showJSON (ItemMetaTag t) =
+      makeObj [  ("type", showJSON "ItemMetaTag")
+               , ("ItemMetaTag", showJSON $ toJSObject t)
               ]
 
-   showJSON (ItemLinebreak) = makeObj [ ("type", showJSON "ItemLinebreak") ]
+   showJSON ItemLinebreak = makeObj [ ("type", showJSON "ItemLinebreak") ]
 
-   showJSON (ItemImage i) = 
+   showJSON (ItemImage i) =
       makeObj [  ("type", showJSON "ItemImage")
-               , ("ItemImage", showJSON $ i) 
+               , ("ItemImage", showJSON i)
               ]
 
    readJSON (JSObject obj) = let
      jsonObjAssoc = fromJSObject obj
-     getOne  x = (mLookup x jsonObjAssoc) >>= readJSON
+     getOne  x = mLookup x jsonObjAssoc >>= readJSON
     in do
       objType <- getOne "type"
       case objType of
          "ItemWord"               -> ItemWord <$> getOne objType
          "ItemDocumentContainer"  -> ItemDocumentContainer <$> getOne objType
-         "ItemMetaTag"            -> ItemMetaTag <$> (fromJSObject <$> 
+         "ItemMetaTag"            -> ItemMetaTag <$> (fromJSObject <$>
                                                       getOne objType)
          "ItemLinebreak"          -> return ItemLinebreak
          "ItemImage"              -> ItemImage <$> getOne objType
-         _                        -> fail $ "Unknown object type: " ++ 
+         _                        -> fail $ "Unknown object type: " ++
                                             show objType
    readJSON x = fail $ "Cannot decode JSON item: " ++ show x
 
@@ -225,7 +225,7 @@ instance JSON UListItem where
       jsonObjAssoc = fromJSObject obj
     in do
       indent <- mLookup "indent" jsonObjAssoc >>= readJSON
-      return $ UListItem indent 
+      return $ UListItem indent
 
 {-| A heading -}
 data Heading = Heading {   headingLevel :: Int -- ^ The heading level
@@ -238,7 +238,7 @@ data Heading = Heading {   headingLevel :: Int -- ^ The heading level
 
 instance JSON Heading where
    showJSON hd  = makeObj [  ("level", showJSON $ headingLevel hd)
-                           , ("computedNumber", showJSON $ 
+                           , ("computedNumber", showJSON $
                                                   headingComputedNumber hd)
                           ]
 
@@ -282,15 +282,15 @@ instance JSON DocumentImage where
 
 {-| Generate a list of zeroes with a specific size. -}
 listOfSize :: Int -> [Int]
-listOfSize n = take n (repeat 0)
+listOfSize n = replicate n 0
 
 type NestedStack = [[Int]]
 
 incrementLastNumber :: NestedStack -> NestedStack
-incrementLastNumber (top:rest) = ((init top)++[(last top)+1]):rest
+incrementLastNumber (top:rest) = (init top++[last top+1]):rest
 
 addElementOfLevel :: Int -> NestedStack -> NestedStack
-addElementOfLevel n stack = ((head stack) ++ (listOfSize (n - (length $ head stack)))):stack
+addElementOfLevel n stack = (head stack ++ listOfSize (n - length (head stack))):stack
 
 nestingLevel :: Int -> State NestedStack [Int]
 nestingLevel level = do
@@ -299,11 +299,10 @@ nestingLevel level = do
       EQ -> do put $ incrementLastNumber curStack
       GT -> do put $ addElementOfLevel level curStack
       LT -> let tmpStack = dropWhile ( (>level) . length) curStack in do
-                if (length $ head tmpStack) < level
+                if length (head tmpStack) < level
                    then put $ addElementOfLevel level tmpStack
                    else put $ incrementLastNumber tmpStack
-   stack <- get
-   return $ head stack
+   gets head
 
 computeHeadingNumbers' :: [DocumentItem] -> State NestedStack [DocumentItem]
 computeHeadingNumbers' [] = return []
@@ -331,13 +330,13 @@ headingNumber :: [Int] -> String
 headingNumber level = intercalate "." $ map (show . (+1)) level
 
 headingToToc :: DocumentItem -> Maybe (OListItem, [DocumentItem])
-headingToToc (ItemDocumentContainer (DocumentHeading (Heading _ cn) headline)) = 
+headingToToc (ItemDocumentContainer (DocumentHeading (Heading _ cn) headline)) =
     let indent   = headingIndent <$> cn
         num      = headingNumber <$> cn
-        minnm    = ((,)) <$> indent <*> num
+        minnm    = (,) <$> indent <*> num
     in case minnm of
        Nothing -> Nothing
-       Just (ind, nmb) -> Just $ (OListItem ind nmb, headline)
+       Just (ind, nmb) -> Just (OListItem ind nmb, headline)
 
 headingToToc _ = Nothing
 
@@ -345,16 +344,13 @@ headingToToc _ = Nothing
     contents as a DocumentOList. -}
 generateToc :: [DocumentItem] -> DocumentItem
 generateToc document = ItemDocumentContainer $
-                         DocumentOList $ catMaybes $ map headingToToc document
+                         DocumentOList $ mapMaybe headingToToc document
 
 -------------------------- Filter out certain items -------------------
 
 {-| Returns `[a]` if func(a) == True. -}
 filterHelper :: (a -> Bool) -> a -> [a]
-filterHelper func item =
-   if func item
-      then [item]
-      else []
+filterHelper func item = [item | func item]
 
 {-| Returns all elements in the document with func(element) == True. -}
 flatRecurse :: ([DocumentItem] -> [a]) -> DocumentContainer -> [a]
@@ -371,10 +367,10 @@ flatRecurse func (DocumentParagraph content) =
    func content
 
 flatRecurse func (DocumentOList content) =
-   concat $ map (func . snd) content
- 
+   concatMap (func . snd) content
+
 flatRecurse func (DocumentUList content) =
-   concat $ map (func . snd) content
+   concatMap (func . snd) content
 
 flatRecurse func (DocumentTableRow content) =
    func (concat content)
@@ -415,7 +411,7 @@ deepRecurse func (DocumentParagraph content) =
 
 deepRecurse func (DocumentOList content) =
    DocumentOList $ map (\(a,b) -> (a, func b)) content
- 
+
 deepRecurse func (DocumentUList content) =
    DocumentUList $ map (\(a,b) -> (a, func b)) content
 
@@ -434,15 +430,15 @@ transformDocument ::   (DocumentItem -> DocumentItem) -- ^ The transformation fu
 transformDocument _ [] = []
 transformDocument func (item:items) =
    case item of
-      ItemDocumentContainer dc -> let container = if (func item == item) 
+      ItemDocumentContainer dc -> let container = if func item == item
                                                      then ItemDocumentContainer $ deepRecurse (transformDocument func) dc
                                                      else func item
                                   in (container : transformDocument func items)
-      _ -> (func item : transformDocument func items)
+      _ -> func item : transformDocument func items
 
 -- | Extracts the textual content from a udoc document
 extractWords :: [DocumentItem] -> String
-extractWords = intercalate " " . catMaybes . map collectWords
+extractWords = unwords . mapMaybe collectWords
     where collectWords (ItemWord x) = Just x
           collectWords (ItemDocumentContainer (DocumentHeading _ dis)) = Just $ extractWords dis
           collectWords (ItemDocumentContainer (DocumentBoldFace dis)) = Just $ extractWords dis
@@ -450,7 +446,7 @@ extractWords = intercalate " " . catMaybes . map collectWords
           collectWords (ItemDocumentContainer (DocumentParagraph dis)) = Just $ extractWords dis
           collectWords (ItemDocumentContainer (DocumentOList oli)) = Just $ intercalate "\n" $ map (extractWords . snd) oli
           collectWords (ItemDocumentContainer (DocumentUList uli)) = Just $ intercalate "\n" $ map (extractWords . snd) uli
-          collectWords (ItemDocumentContainer (DocumentTableRow dis)) = Just $ intercalate " " $ map extractWords dis
+          collectWords (ItemDocumentContainer (DocumentTableRow dis)) = Just $ unwords $ map extractWords dis
           collectWords (ItemDocumentContainer (DocumentTable _ _ _ cs)) = Just $ extractWords $ map ItemDocumentContainer cs
           collectWords (ItemDocumentContainer (DocumentMetaContainer _ dis)) = Just $ extractWords dis
           collectWords (ItemImage x)   = Nothing

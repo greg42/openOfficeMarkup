@@ -71,13 +71,13 @@ type HSP = String -> [(String, String)] -> IParse DocumentItem
 
 -- | Returns whether or not a parsing option is set.
 isOptionSet :: SyntaxOption -> IParse Bool
-isOptionSet opt = (elem opt . parserStateFlavor) <$> P.getState
+isOptionSet opt = elem opt . parserStateFlavor <$> P.getState
 
 -- | Executes a parser if any only if a configuration option is set.
 whenOptionSet :: SyntaxOption -> IParse () -> IParse ()
 whenOptionSet opt act = do
     s <- isOptionSet opt
-    when s $ act
+    when s act
 
 -- | A command is an entity in a document that will cause the backend renderer
 -- to perform a special operation. Commands in this markup language take the
@@ -87,8 +87,7 @@ type Command = (String, [(String, String)])
 
 -- | Parse a udoc document and return the document items.
 parseDocument :: ParserState -> HSP -> String -> Either ParseError ([DocumentItem], ParserState)
-parseDocument initialState hsp input = 
-   myParse id parser input
+parseDocument initialState hsp = myParse id parser
    where myParse f p src = fst
                            $ flip runState (f $ initialPos "")
                            $ runParserT p initialState "" src
@@ -106,7 +105,7 @@ parseDocument initialState hsp input =
 -- |       position.
 parseInlineDocument :: ParserState -> SourcePos -> HSP -> String -> Either ParseError ([DocumentItem], ParserState)
 parseInlineDocument initialState currentPosition handleSpecialCommand source =
-  fixPosition $ fst $ runState runParser (initialPos fileName)
+  fixPosition $ evalState runParser (initialPos fileName)
   where
     fileName :: String
     fileName = sourceName currentPosition
@@ -129,7 +128,7 @@ parseInlineDocument initialState currentPosition handleSpecialCommand source =
     -- | error position.
     updateErrorPos :: SourcePos -> SourcePos -> SourcePos
     updateErrorPos initialPos errorPos =
-      setSourceColumn (setSourceLine errorPos $ (sourceLine initialPos)) (sourceColumn initialPos)
+      setSourceColumn (setSourceLine errorPos (sourceLine initialPos)) (sourceColumn initialPos)
 
 
 -- | Skips zero or more space or tab characters.
@@ -150,8 +149,8 @@ documentItems hsp = do
     -- include them separately, i.e., without a surrounding paragraph.
     docHead <- many $ tryCommand isMetaTag
     whiteSpace
-    items   <- many $     (try $ heading hsp) 
-                      <|> (try $ optionIf BlockQuotes $ blockQuote) 
+    items   <- many $     (try $ heading hsp)
+                      <|> (try $ optionIf BlockQuotes $ blockQuote)
                       <|> (try $ optionIf FencedCodeBlocks $ fencedCodeBlock)
                       <|> paragraph hsp
     whiteSpace
@@ -184,25 +183,24 @@ commandParameter = do whiteSpace
                       spaces
                       char '='
                       spaces
-                      value <- quotedContent <|> (many1 $ noneOf "\n ,\t\"[]")
+                      value <- quotedContent <|> many1 (noneOf "\n ,\t\"[]")
                       whiteSpace
                       return (name, value)
 
 -- | The inner part of a command. This matches a string of the form:
 -- command key=value.
 command :: IParse Command
-command = do 
+command = do
    whiteSpace
    commandName <- many1 (alphaNum <|> char '/')
    whiteSpace
-   params <- commandParameter `sepBy` (char ',')
+   params <- commandParameter `sepBy` char ','
    whiteSpace
    return (commandName, params)
 
-
 -- | A command surrounded by square brackets. 
 squareBrCommand :: IParse Command
-squareBrCommand = 
+squareBrCommand =
    between (char '[') (char ']') (do ret <- command; spaces; return ret)
 
 -- | Some text surrounded by curly brackets. This will internally be
@@ -221,45 +219,45 @@ inlineQuote = char '"' >> return ("_q", [])
 
 -- | Looks up a list of keys from an association list. If all keys are found,
 -- returns Just [values]. Otherwise, returns nothing.
-getMandatory ::   (Eq a) => 
+getMandatory ::   (Eq a) =>
                   [a] -- ^ Keys to be looked up
                -> [(a, b)] -- ^ An association list
                -> Maybe [b] -- ^ The result
-getMandatory keys aList = mapM ((flip lookup) aList) keys
+getMandatory keys aList = mapM (`lookup` aList) keys
 
 -- | Looks up a list of keys from an association list. If at least one of the
 -- keys are not found, this runction returns Nothing. Otherwise, it will return
 -- Just a new association list. The keys in this new association list will
 -- however not be the original keys that were looked up. Instead, the lookup
 -- keys will be renamed.
-mandRename ::   (Eq a) => 
+mandRename ::   (Eq a) =>
                 [(a, b)] -- ^ A pair: (lookup key, new key)
              -> [(a, c)] -- ^ An association list
              -> Maybe [(b, c)] -- ^ The result with the lookup keys renamed
 mandRename mandKeyName aList =
-   zip <$> (Just $ map snd mandKeyName) <*> 
-           (getMandatory (map fst mandKeyName) aList)
+   zip <$> Just (map snd mandKeyName) <*>
+           getMandatory (map fst mandKeyName) aList
 
 -- | Looks up a list of keys from an association list and builds a new
 -- association list, holding the found values. The keys in the new list are
 -- obtained by renaming the old keys.
-optRename ::    (Eq a) => 
+optRename ::    (Eq a) =>
                 [(a, b)] -- ^ A pair: (lookup key, new key)
              -> [(a, c)] -- ^ An association list
              -> [(b, c)] -- ^ The result with the lookup keys renamed
 optRename optKeyName aList =
-   let values = map ((flip lookup) aList) (map fst optKeyName)
+   let values = map (flip lookup aList . fst) optKeyName
        -- getJust (Just 3, Just 3) = Just (3, 4)
        -- getJust (Nothing, Just 2) = Nothing
-       getJust x = ((,)) <$> fst x <*> snd x
+       getJust x = (,) <$> fst x <*> snd x
    in
-   catMaybes $ map getJust (zip (map (Just . snd) optKeyName) values)
+   mapMaybe getJust (zip (map (Just . snd) optKeyName) values)
 
 -- | A combination of mandRename and optRename. This function tries to extract
 -- all required and optional arguments from a list. The obtained arguments will
 -- be renamed and then a function will be invoked on both resulting argument
 -- lists. The result of the function will be returned.
-getArgumentsOrFail ::    (Monad m, MonadFail m, Eq a, Show a) => 
+getArgumentsOrFail ::    (Monad m, MonadFail m, Eq a, Show a) =>
                          [(a, b)] -- ^ A renaming pair for the mandatory args
                       -> [(a, b)] -- ^ A renaming pair for the optional args
                       -> [(a, c)] -- ^ An association list
@@ -272,9 +270,9 @@ getArgumentsOrFail mandArgs optArgs aList f =
        opt  = optRename optArgs aList
    in
    case mand of
-      Nothing  -> fail $ "Missing argument. Epecting: " ++ 
-                        (show $ map fst mandArgs) ++ 
-                        " but only got " ++ (show $ map fst aList)
+      Nothing  -> fail $ "Missing argument. Epecting: " ++
+                        show (map fst mandArgs) ++
+                        " but only got " ++ show (map fst aList)
       Just m'  -> return $ f m' opt
 
 {-| Lookup a required tag attribute that may not exist. -}
@@ -293,13 +291,13 @@ createMetaTag t mprops oprops = ItemMetaTag $ [("type", t)] ++ mprops ++ oprops
 -- function will lookup all mandatory and optional arguments from the argument
 -- list that has been supplied. If this worked out, it will return an
 -- ItemMetaTag.
-handleMetaTag ::    (Monad m, MonadFail m, Show a, Eq a) => 
+handleMetaTag ::    (Monad m, MonadFail m, Show a, Eq a) =>
                     String -- ^ The name of the tag type
                  -> [(a, String)] -- ^ Mandatory tag arguments
                  -> [(a, String)] -- ^ Optional tag arguments
                  -> [(a, String)] -- ^ The parsed tag arguments
                  -> m DocumentItem -- ^ The resulting item
-handleMetaTag t mand opt aList = 
+handleMetaTag t mand opt aList =
    getArgumentsOrFail mand opt aList (createMetaTag t)
 
 -- | Checks that all required arguments are present and then creates the
@@ -327,11 +325,11 @@ handleTblRef = handleMetaTag "tblref" [("label", "label")] []
 handleSetPos :: [(String, String)] -> IParse DocumentItem
 handleSetPos args = do
     ifHave "filename" args $ \filename ->
-       modifySourcePos $ (flip setSourceName) filename
-    ifHave "line" args $ \linenumber -> 
-       modifySourcePos $ (flip setSourceLine) (read linenumber)
+       modifySourcePos $ flip setSourceName filename
+    ifHave "line" args $ \linenumber ->
+       modifySourcePos $ flip setSourceLine (read linenumber)
     ifHave "column" args $ \column ->
-       modifySourcePos $ (flip setSourceColumn) (read column)
+       modifySourcePos $ flip setSourceColumn (read column)
     handleMetaTag "setpos" [] [("filename", "filename"), ("line", "line"), ("column", "column")] args
     where ifHave x l a = case lookup x l of
                             Just v -> a v
@@ -343,9 +341,9 @@ handleSetPos args = do
 handleFlavor :: [(String, String)] -> IParse DocumentItem
 handleFlavor args = do
     tag <- handleMetaTag "flavor" [("name", "name")] [] args
-    case (lookup "name" args >>= readMaybe) of
-       Nothing -> fail $ "Cannot parse udoc extension name " ++ (show $ lookup "name" args)
-       Just e  -> PP.modifyState $ \x -> x { parserStateFlavor = (e:parserStateFlavor x) }
+    case lookup "name" args >>= readMaybe of
+       Nothing -> fail $ "Cannot parse udoc extension name " ++ show (lookup "name" args)
+       Just e  -> PP.modifyState $ \x -> x { parserStateFlavor = e:parserStateFlavor x }
     return tag
 
 -- | Creates an ItemDocumentMetaContainer from the container type, its
@@ -354,8 +352,8 @@ createMetaContainer ::    String -- ^ The container type
                        -> [(String, String)] -- ^ The container properties
                        -> [DocumentItem] -- ^ The container content
                        -> DocumentItem -- ^ The resulting item
-createMetaContainer t props content = 
-   ItemDocumentContainer $ DocumentMetaContainer ([("type", t)] ++ props) content
+createMetaContainer t props content =
+   ItemDocumentContainer $ DocumentMetaContainer (("type", t) : props) content
 
 -- | A command is either inlineSource or a regular command surrounded
 -- by square brackets.
@@ -365,15 +363,14 @@ extendedCommand' = inlineSource <|> inlineQuote <|> squareBrCommand
 -- | This parses a command and handles it accordingly.
 extendedCommand :: HSP -> IParse DocumentItem
 extendedCommand hsp = do
-   (name, args) <- (spaces >> extendedCommand')
-   result <- handleExtendedCommand name args hsp
-   return result
+   (name, args) <- spaces >> extendedCommand'
+   handleExtendedCommand name args hsp
 
 -- | This works as some sort of lookahead: it expects a given command. However,
 -- it will not consume any input.
 extendedCommandName :: String -> IParse ()
 extendedCommandName name = try (do (name', args) <- extendedCommand'
-                                   if name == name' 
+                                   if name == name'
                                      then do return ()
                                      else do fail ""
                                ) <?> "the tag [" ++ name ++ "]"
@@ -393,17 +390,17 @@ removeTrailingNewline items =
 handleExtendedCommand ::    String -- ^ The command name
                          -> [(String, String)] -- ^ The command's arguments
                          -> HSP -- ^ The supported special commands
-                         -> IParse DocumentItem 
+                         -> IParse DocumentItem
 handleExtendedCommand name args handleSpecialCommand =
    case name of
       "b"      -> do skipEmptyLines
-                     bold <- containerContentsUntil (extendedCommandName "/b") 
+                     bold <- containerContentsUntil (extendedCommandName "/b")
                                                     handleSpecialCommand
                      return $ ItemDocumentContainer $ DocumentBoldFace bold
       "i"      -> do skipEmptyLines
                      italic <- containerContentsUntil (extendedCommandName "/i") handleSpecialCommand
                      return $ ItemDocumentContainer $ DocumentItalicFace italic
-      "br"     -> return $ ItemLinebreak
+      "br"     -> return ItemLinebreak
       "meta"   -> return $ ItemMetaTag args
       "pb"     -> return $ ItemMetaTag [("type", "pagebreak")]
 
@@ -413,20 +410,20 @@ handleExtendedCommand name args handleSpecialCommand =
                      caption <- mLookup "caption" args "Missing caption in image tag"
                      path    <- mLookup "path"    args "Missing path in image tag"
                      eatSpaces <- isOptionSet SkipNewlinesAfterImage
-                     when eatSpaces skipEmptyLines 
+                     when eatSpaces skipEmptyLines
                      return $ ItemImage $ Image path caption label scaling alignment
 
       "inlineImage" -> do let vOffset = fromMaybe "0" $ lookup "vOffset" args
                           path <- mLookup "path" args "Missing path in inlineImage tag"
-                          return $ ItemMetaTag (
-                            [ ("type", "inlineImage")
+                          return $ ItemMetaTag [
+                              ("type", "inlineImage")
                             , ("path", path)
                             , ("vOffset", vOffset)
-                            ])
+                            ]
 
-      "table"  -> do let mCL = ((,)) <$> lookup "caption" args <*> lookup "label" args
+      "table"  -> do let mCL = (,) <$> lookup "caption" args <*> lookup "label" args
                      let style = fromMaybe "head_top" $ lookup "style" args
-                     let mWidths = sequence $ map readMaybe $ map (filter (/= ' ')) $ split ',' $ fromMaybe "" $ lookup "widths" args
+                     let mWidths = mapM (readMaybe . filter (/= ' ')) (split ',' $ fromMaybe "" $ lookup "widths" args)
                      widths <- case mWidths of
                                      Nothing -> fail "Cannot parse table widths argument."
                                      Just w -> return w
@@ -444,9 +441,9 @@ handleExtendedCommand name args handleSpecialCommand =
                      rows <- forM rows $ \row -> do
                          cells <- forM row $ \cell -> do
                             case parseInlineDocument currentState currentPosition handleSpecialCommand cell of
-                               Left err -> error $ "Error while parsing the table which is located at " ++ (show currentPosition) ++ ".\n\n" ++ (show err)
+                               Left err -> error $ "Error while parsing the table which is located at " ++ show currentPosition ++ ".\n\n" ++ show err
                                Right (inner, newS) -> do P.setState newS
-                                                         return $ concat $ map stripOuterParagraph inner
+                                                         return $ concatMap stripOuterParagraph inner
                          return $ DocumentTableRow cells
                      return $ ItemDocumentContainer $ DocumentTable style mCL widths rows
       "_s"     -> do x <- parserStateLastInlineOpeningTag <$> P.getState
@@ -455,7 +452,7 @@ handleExtendedCommand name args handleSpecialCommand =
                                   '`' -> '`'
                                   x   -> x
                      source <- manyTill inlineVerbatimContent (char chr >> spaces)
-                     return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineSource")]) source
+                     return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "inlineSource")] source
 
       "_q"     -> handleInlineQuote handleSpecialCommand
       "source" -> do let language = fromMaybe "" $ lookup "language" args
@@ -463,7 +460,7 @@ handleExtendedCommand name args handleSpecialCommand =
                      source <- manyTill (verbatimContent "[/source]") (extendedCommandName "/source")
                      eatSpaces <- isOptionSet SkipNewlinesAfterSourceOrQuoteBlock
                      when eatSpaces skipEmptyLines
-                     return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "source"), ("language", language)]) (removeTrailingNewline source)
+                     return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "source"), ("language", language)] (removeTrailingNewline source)
       "label"  -> handleLab args
       "ref"    -> handleRef args
       "imgref" -> handleImgRef args
@@ -473,9 +470,9 @@ handleExtendedCommand name args handleSpecialCommand =
                      content <- manyTill (verbatimContent "[/quote]") (extendedCommandName "/quote")
                      eatSpaces <- isOptionSet SkipNewlinesAfterSourceOrQuoteBlock
                      when eatSpaces skipEmptyLines
-                     return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "blockquote")]) (removeTrailingNewline content)
+                     return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "blockquote")] (removeTrailingNewline content)
       "flavor" -> handleFlavor args
- 
+
       -- If we end up here, we can at least check if the
       -- identified command is some special-purpose
       -- command
@@ -490,12 +487,12 @@ handleExtendedCommand name args handleSpecialCommand =
 -- | Parses one line from a table. Be aware, it really parses one line, not
 -- one row.
 oneTableLine :: IParse [String]
-oneTableLine = 
-   (many $ (notFollowedBy (extendedCommandName "/table") >> noneOf "|\n")) `sepBy` ((optional $ char ' ') >> (char '|') >> (optional $ char ' '))
+oneTableLine =
+   many (notFollowedBy (extendedCommandName "/table") >> noneOf "|\n") `sepBy` (optional (char ' ') >> char '|' >> optional (char ' '))
 
 -- | Utility for stopping parsing when a table ends
 endOr :: a -> IParse a -> IParse a
-endOr val action = try $ ((extendedCommandName "/table") >> return val)
+endOr val action = try $ (extendedCommandName "/table" >> return val)
                    <|> action
 
 -- | Actual table parsing function. Takes a flag that tells whether or not the
@@ -515,30 +512,30 @@ table' ml table = do
 -- to be parsed in multi-line mode or not.
 tableAppend :: Bool -> [String] -> [[String]] -> ([[String]], Bool)
 tableAppend ml l table
-   | (not ml) && isDelimiter l && null table = (table, True)
-   | (not ml) && isDelimiter l = ([foldl (zipWith (\a b -> a ++ b ++ "\n")) emptyRow table] ++ [take (length $ table !! 0) emptyRow], True)
-   | ml && isDelimiter l = (table ++ [take (length $ table !! 0) emptyRow], True)
+   | not ml && isDelimiter l && null table = (table, True)
+   | not ml && isDelimiter l = (foldl (zipWith (\a b -> a ++ b ++ "\n")) emptyRow table : [take (length $ head table) emptyRow], True)
+   | ml && isDelimiter l = (table ++ [take (length $ head table) emptyRow], True)
    | not ml = (table ++ [l], False)
-   | ml && length table > 0 = ((init table) ++ [zipWith (\a b -> a ++ b ++ "\n") (last table) l], True)
+   | ml && not (null table) = (init table ++ [zipWith (\a b -> a ++ b ++ "\n") (last table) l], True)
    | otherwise = (table, ml) -- Should not happen
-   where isDelimiter (l:[]) = all ((||) <$> (=='-') <*> (=='+')) (trimEnd l)
+   where isDelimiter [l] = all ((||) <$> (=='-') <*> (=='+')) (trimEnd l)
          isDelimiter _      = False
          emptyRow = repeat ""
-         trimEnd l = dropWhileEnd isSpace l
+         trimEnd = dropWhileEnd isSpace
 
 -- | Convenience wrapper around our table parsing function
 table :: IParse [[String]]
-table = do 
+table = do
    t <- table' False []
    return $ takeWhile (not . all (=="")) t
 
 -- | Simply parse a paragraph.
 paragraph :: HSP -> IParse DocumentItem
 paragraph hsp = do
-    bq <- isOptionSet BlockQuotes 
+    bq <- isOptionSet BlockQuotes
     fc <- isOptionSet FencedCodeBlocks
     let without = [(bq, blockQuoteBegin), (fc, fencedCodeBlockBegin)]
-    let withouts = foldl (\p (flag, parser) -> if flag then (p <|> (try parser)) else p) parserZero without
+    let withouts = foldl (\p (flag, parser) -> if flag then p <|> try parser else p) parserZero without
     paragraphWithout withouts hsp
 
 -- | Parse a paragraph. This Paragraph could contain a list of words or lists or
@@ -546,8 +543,8 @@ paragraph hsp = do
 paragraphWithout ::    IParse () -- ^ The parser that may not succeed
                     -> HSP -- ^ The supported special commands
                     -> IParse DocumentItem
-paragraphWithout x hsp = do 
-   lines <- many1 (  notFollowedBy x >> 
+paragraphWithout x hsp = do
+   lines <- many1 (  notFollowedBy x >>
                      (
                            (do x <- try $ line hsp; optional newline; return x)
                        <|> (do x <- try $ extendedCommand hsp; optional newline; return [x])
@@ -561,30 +558,30 @@ paragraphWithout x hsp = do
 -- | Parses escaped character sequences (such as \[) and returns the according
 -- character.
 escaped :: Char -> IParse Char
-escaped x = (string ("\\"++[x])) >> return x
+escaped x = string ("\\"++[x]) >> return x
 
 -- | Parses one character in a regular word of the text.
 wordChar :: IParse Char
 wordChar = do
-    bts <- isOptionSet BacktickSource 
+    bts <- isOptionSet BacktickSource
     fcb <- isOptionSet FencedCodeBlocks
     let additional = if bts || fcb
                        then "`"
                        else ""
-    doWordChar additional 
+    doWordChar additional
     where doWordChar additional =
-                (try $ escaped '[')
-            <|> (try $ escaped ']')
-            <|> (try $ escaped '|')
-            <|> (try $ escaped '{')
-            <|> (try $ escaped '}')
-            <|> (try $ escaped '"')
-            <|> (try $ escaped '\\')
-            <|> (try $ escaped '`')
-            <|> (try $ escaped '#')
-            <|> (noneOf $ " \t\n[]|{}\"" ++ additional)
+                try (escaped '[')
+            <|> try (escaped ']')
+            <|> try (escaped '|')
+            <|> try (escaped '{')
+            <|> try (escaped '}')
+            <|> try (escaped '"')
+            <|> try (escaped '\\')
+            <|> try (escaped '`')
+            <|> try (escaped '#')
+            <|> noneOf (" \t\n[]|{}\"" ++ additional)
             <?> "a valid word character"
-   
+
 -- | Parses a whole word in the text of the document.
 word :: IParse DocumentItem
 word = do result <- many1 wordChar
@@ -594,8 +591,8 @@ word = do result <- many1 wordChar
 -- | Contents of a source code section. Note that spaces, newlines and
 -- tabs will be left as they are. However, the bold tag is supported!
 verbatimContent :: String -> IParse DocumentItem
-verbatimContent closingTag = 
-   try (verbatimBold closingTag) <|> (verbatimText closingTag)
+verbatimContent closingTag =
+   try (verbatimBold closingTag) <|> verbatimText closingTag
 
 -- | Helper for bold text in verbatim content
 verbatimBold ::   String -- ^ The tag that will close the verbatim section.
@@ -604,7 +601,7 @@ verbatimBold ::   String -- ^ The tag that will close the verbatim section.
 verbatimBold closingTag = do
    string "[b]"
    bold <- manyTill (verbatimText closingTag) (extendedCommandName "/b")
-   return $ ItemDocumentContainer $ DocumentBoldFace (bold)
+   return $ ItemDocumentContainer $ DocumentBoldFace bold
 
 -- | Contents of the verbatim container. That might be everything, but
 -- we handle [b] and [/b], in order to allow for bold parts in source
@@ -614,18 +611,18 @@ verbatimText closingTag = do
    result <- many1 (
                       (
                          (
-                              (try $ lookAhead $ string "\\[b]")
-                              <|> (try $ lookAhead $ string "\\[/b]")
-                              <|> (try $ lookAhead $ string $ "\\" ++ closingTag)
+                              try (lookAhead $ string "\\[b]")
+                              <|> try (lookAhead $ string "\\[/b]")
+                              <|> try (lookAhead $ string $ "\\" ++ closingTag)
                          ) >>
-                         (escaped '[')
+                         escaped '['
                       )
                       <|>
                       (
-                         (notFollowedBy $ string closingTag) >>
-                         (notFollowedBy $ string "[b]") >>
-                         (notFollowedBy $ string "[/b]") >>
-                         (anyChar)
+                         notFollowedBy (string closingTag) >>
+                         notFollowedBy (string "[b]") >>
+                         notFollowedBy (string "[/b]") >>
+                         anyChar
                       )
                    )
 
@@ -634,7 +631,7 @@ verbatimText closingTag = do
 -- | Contents of the inline verbatim container - may basically be everything
 -- besides { or }, which need to be escaped.
 inlineVerbatimContent :: IParse DocumentItem
-inlineVerbatimContent = do 
+inlineVerbatimContent = do
    result <- many1 (wordChar <|> oneOf "\n\t |\"[]")
    return $ ItemWord result
 
@@ -643,7 +640,7 @@ inlineVerbatimContent = do
 handleInlineQuote :: HSP -> IParse DocumentItem
 handleInlineQuote hsp = do
    text <- containerContentsUntil closingQuote hsp
-   return $ ItemDocumentContainer $ DocumentMetaContainer ([("type", "inlineQuote")]) text
+   return $ ItemDocumentContainer $ DocumentMetaContainer [("type", "inlineQuote")] text
    where
       closingQuote :: IParse ()
       closingQuote = do
@@ -655,19 +652,17 @@ handleInlineQuote hsp = do
 -- enabled)
 beginRegularLine :: IParse ()
 beginRegularLine =
-   (notFollowedBy $ listItemBegin) >>
-   (notFollowedBy $ headingBegin)
+   notFollowedBy listItemBegin >> notFollowedBy headingBegin
 
 -- | One line of text
 line :: HSP -> IParse [DocumentItem]
-line hsp = 
-   spaces >> beginRegularLine >> (many1 word)
+line hsp =
+   spaces >> beginRegularLine >> many1 word
 
 -- | An empty line of text
 emptyline :: IParse ()
 emptyline = do spaces
-               (char '\n' >> return ())
-               return ()
+               void (char '\n')
 
 -- | Skipts all empty lines of text
 skipEmptyLines :: IParse ()
@@ -678,20 +673,20 @@ skipEmptyLines = skipMany (try emptyline)
 -- fail on newline.
 containerContentOneLine :: HSP -> IParse [DocumentItem]
 containerContentOneLine hsp =
-          (try $ (:[]) <$> extendedCommand hsp)
-      <|> (try $ (:[]) <$> uList hsp)
-      <|> (try $ (:[]) <$> oList hsp)
+          try ((:[]) <$> extendedCommand hsp)
+      <|> try ((:[]) <$> uList hsp)
+      <|> try ((:[]) <$> oList hsp)
       <|> (beginRegularLine >> many1 word)
 
 -- | If the last item in l is a Paragraph, then remove this paragraph
 -- and replace it by its plain contents.
 removeLastPara :: [DocumentItem] -> [DocumentItem]
 removeLastPara [] = []
-removeLastPara l = 
+removeLastPara l =
    let rev = reverse l
        fst = removePara $ head rev
    in
-   reverse ((reverse fst) ++ (tail rev))
+   reverse (reverse fst ++ tail rev)
 
 -- | If the supplied DocumentItem is a DocumentParagraph, then just
 -- return the Paragraph contents. Otherwise simply return the DocumentItem
@@ -708,7 +703,7 @@ containerContentsUntil ::    IParse() -- ^ The parser that may not succeed
                           -> HSP -- ^ The supported special commands
                           -> IParse [DocumentItem]
 containerContentsUntil x hsp = do
-   contents <- manyTill (containerContentWithout x hsp) (x)
+   contents <- manyTill (containerContentWithout x hsp) x
    return $ removeLastPara contents
 
 -- | The contents of a container; may not contain anything matched by some
@@ -736,13 +731,13 @@ uListItemBegin = do
       i <- many $ char ' '
       char '*'
       j <- many $ char ' '
-      return $ ((length (i++j)) + 1)
+      return (length (i++j) + 1)
 
 -- | The body of an item in an un-ordered list
 uListItemBody :: HSP -> Int -> IParse (UListItem, [DocumentItem])
 uListItemBody hsp ind = do
       content <- block (containerContentBlock hsp)
-      return $ (UListItem ind, (concat content))
+      return (UListItem ind, concat content)
 
 -- | One item in an un-ordered list
 uListItem :: HSP -> IParse (UListItem, [DocumentItem])
@@ -754,13 +749,13 @@ uListItem hsp =
 uList :: HSP -> IParse DocumentItem
 uList hsp = do
    checkIndent
-   lookAhead (uListItemBegin)
-   s <- P.getState 
+   lookAhead uListItemBegin
+   s <- P.getState
    P.setState $ s { parserStateCurrentListLevel = parserStateCurrentListLevel s + 1 }
    result <- block $ uListItem hsp
    P.setState $ s { parserStateCurrentListLevel = parserStateCurrentListLevel s }
    eatSpaces <- isOptionSet SkipNewlinesAfterUlist
-   when (parserStateCurrentListLevel s == 0 && eatSpaces) $ skipEmptyLines
+   when (parserStateCurrentListLevel s == 0 && eatSpaces) skipEmptyLines
    return $ ItemDocumentContainer (DocumentUList result)
 
 -- | The begin of an item in an ordered list. Returns the indentation level
@@ -779,7 +774,7 @@ newOlistItemBegin = do
    i <- many $ char ' '
    string "+"
    many1 space
-   return ((length i), "0")
+   return (length i, "0")
 
 -- | The old version of ordered lists start with dotted numbers followed
 -- by either a dot, the sequence .) or the ) character.
@@ -787,16 +782,16 @@ oldOlistItemBegin :: IParse (Int, String)
 oldOlistItemBegin = do
    i <- many $ char ' '
    number <- dottedNumber
-   trailer <- ( (try $ string ".)") <|> string "." <|> string ")" <?> "a number in an enumerated list")
+   trailer <- try (string ".)") <|> string "." <|> string ")" <?> "a number in an enumerated list"
    spaces
-   return ((length i), number)
+   return (length i, number)
 
 -- | One item in an ordered list
 oListItem :: HSP -> IParse (OListItem, [DocumentItem])
 oListItem hsp =
    do (ind, num) <- oListItemBegin
-      content <- block $ (containerContentBlock hsp)
-      return $ (OListItem ind num, (concat content))
+      content <- block (containerContentBlock hsp)
+      return (OListItem ind num, concat content)
 
 -- | An ordered list. 
 oList :: HSP -> IParse DocumentItem
@@ -810,7 +805,7 @@ oList hsp =
 dottedNumber :: IParse String
 dottedNumber = do num <- many1 digit
                   rest <- try (char '.' >> dottedNumber) <|> return ""
-                  if length rest == 0 then
+                  if null rest then
                      return num
                    else
                       return (num ++ "." ++ rest)
@@ -818,15 +813,15 @@ dottedNumber = do num <- many1 digit
 -- | The begin of a list item: either the begin of an UListItem or the
 -- begin of an OListItem.
 listItemBegin :: IParse ()
-listItemBegin = 
-   ((try uListItemBegin) >> return ()) <|> (oListItemBegin >> return ())
+listItemBegin =
+   void (try uListItemBegin) <|> void oListItemBegin
 
 -- | The begin of a heading: a number of # characters. Returns the heading
 -- level.
 headingBegin :: IParse Int
 headingBegin = do
    spaces
-   level <- (many1 $ char '#')
+   level <- many1 $ char '#'
    spaces
    return $ length level
 
