@@ -349,19 +349,19 @@ nestingLevel level = do
                    else put $ incrementLastNumber tmpStack
    gets head
 
-computeHeadingNumbers' :: [RawDocumentItem] -> State NestedStack [RawDocumentItem]
+computeHeadingNumbers' :: [DocumentItem] -> State NestedStack [DocumentItem]
 computeHeadingNumbers' [] = return []
-computeHeadingNumbers' ( (ItemDocumentContainer (DocumentHeading (Heading level _) content) ):rest) = do
+computeHeadingNumbers' ( item@(DocumentItem { getRawItem = ItemDocumentContainer (DocumentHeading (Heading level _) content) }):rest) = do
    computedNumber <- nestingLevel level
    rest' <- computeHeadingNumbers' rest
-   return $ ItemDocumentContainer (DocumentHeading (Heading level (Just computedNumber)) content):rest'
+   return $ item { getRawItem = ItemDocumentContainer (DocumentHeading (Heading level (Just computedNumber)) content)}:rest'
 
 computeHeadingNumbers' (x:rest) = do rest' <- computeHeadingNumbers' rest
                                      return $ x:rest'
 
 {-| Computes the heading numbers and returns a new document where all heading
     have a headingComputedNumber. -}
-computeHeadingNumbers :: [RawDocumentItem] -> [RawDocumentItem]
+computeHeadingNumbers :: [DocumentItem] -> [DocumentItem]
 computeHeadingNumbers x = evalState (computeHeadingNumbers' x) [[-1]]
 
 ------------------------- Generating a TOC ----------------------------
