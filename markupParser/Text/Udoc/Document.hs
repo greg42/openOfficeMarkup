@@ -21,7 +21,7 @@ module Text.Udoc.Document
    (DocumentItem(..), RawDocumentItem(..), OListItem(..), UListItem(..), Heading(..),
     DocumentContainer(..), DocumentImage(..),
     computeHeadingNumbers, generateToc,
-    filterItems, transformDocument, extractWords)
+    filterItems, transformDocument, extractWords, deepRecurse)
 
 where
 
@@ -442,32 +442,15 @@ filterItems func (item@DocumentItem { getRawItem = rawItem, getStartPos = start,
            filterItems func items
 
 deepRecurse :: ([DocumentItem] -> [DocumentItem]) -> DocumentContainer -> DocumentContainer
-deepRecurse func (DocumentHeading h content) =
-   DocumentHeading h $ func content
-
-deepRecurse func (DocumentBoldFace content) =
-   DocumentBoldFace $ func content
-
-deepRecurse func (DocumentItalicFace content) =
-  DocumentItalicFace $ func content
-
-deepRecurse func (DocumentParagraph content) =
-   DocumentParagraph $ func content
-
-deepRecurse func (DocumentOList content) =
-   DocumentOList $ map (\(a,b) -> (a, func b)) content
-
-deepRecurse func (DocumentUList content) =
-   DocumentUList $ map (\(a,b) -> (a, func b)) content
-
-deepRecurse func (DocumentTableRow content) =
-   DocumentTableRow $ map func content
-
-deepRecurse func (DocumentTable a b c content) =
-   DocumentTable a b c $ map (deepRecurse func) content
-
-deepRecurse func (DocumentMetaContainer x content) =
-   DocumentMetaContainer x $ func content
+deepRecurse func (DocumentHeading h content) = DocumentHeading h $ func content
+deepRecurse func (DocumentBoldFace content) = DocumentBoldFace $ func content
+deepRecurse func (DocumentItalicFace content) = DocumentItalicFace $ func content
+deepRecurse func (DocumentParagraph content) = DocumentParagraph $ func content
+deepRecurse func (DocumentOList content) = DocumentOList $ map (\(a,b) -> (a, func b)) content
+deepRecurse func (DocumentUList content) = DocumentUList $ map (\(a,b) -> (a, func b)) content
+deepRecurse func (DocumentTableRow content) = DocumentTableRow $ map func content
+deepRecurse func (DocumentTable a b c content) = DocumentTable a b c $ map (deepRecurse func) content
+deepRecurse func (DocumentMetaContainer x content) = DocumentMetaContainer x $ func content
 
 transformDocument ::   (DocumentItem -> DocumentItem) -- ^ The transformation function
                     -> [DocumentItem] -- ^ The document

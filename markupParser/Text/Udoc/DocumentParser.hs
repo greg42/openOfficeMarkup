@@ -452,11 +452,12 @@ handleExtendedCommand name args handleSpecialCommand =
           -- cell.
           rows <- forM rows $ \row -> do
              cells <- forM row $ \cell -> do
-                case parseInlineDocument currentState currentPosition handleSpecialCommand cell of
+                let cellText = intercalate "\n" $ map plString cell
+                case parseInlineDocument currentState currentPosition handleSpecialCommand cellText of
                    Left err -> error $ "Error while parsing the table which is located at " ++ show currentPosition ++ ".\n\n" ++ show err
                    Right (inner, newS) -> do
                       P.setState newS
-                      return $ concatMap stripOuterParagraph inner
+                      return $ adjustCellContent cell $ concatMap stripOuterParagraph inner
              return $ DocumentTableRow cells
           return $ ItemDocumentContainer $ DocumentTable style mCL widths rows
       "_s" -> do
@@ -500,11 +501,46 @@ handleExtendedCommand name args handleSpecialCommand =
          split d [] = []
          split d s = x : split d (drop 1 y) where (x,y) = span (/= d) s
 
+data PosLine = PosLine {
+    plString :: !String
+  , plPos    :: !(Maybe SourcePos)
+} deriving (Show, Eq)
+
+type TableCell = [PosLine]
+type TableRow  = [TableCell]
+
+adjustCellContent :: TableCell -> [DocumentItem] -> [DocumentItem]
+adjustCellContent cell = transformDocument (adjustDocumentItem cell)
+    where adjustDocumentItem cell di@(DocumentItem { getRawItem = item, getStartPos = start, getEndPos = end }) =
+             let startLine   = sourceLine start
+                 endLine     = sourceLine end
+                 newStart    = adjustLocation start startLine
+                 newEnd      = adjustLocation end endLine
+                 newItem     = di { getStartPos = newStart, getEndPos = newEnd }
+             in case item of
+                   ItemDocumentContainer container ->
+                      let newContainer = deepRecurse (adjustCellContent cell) container
+                      in newItem { getRawItem = ItemDocumentContainer newContainer }
+                   _ -> newItem
+          adjustLocation loc lineNumber =
+             let origPos = cell !? (lineNumber - 1) >>= plPos
+             in case origPos of
+                -- This is mainly for debugging
+                Nothing -> newPos ("Table Cell line number " ++ show lineNumber ++ " " ++ show cell) (sourceLine loc) (sourceColumn loc)
+                Just origLoc ->
+                   newPos (sourceName origLoc) (sourceLine origLoc) (sourceColumn loc + sourceColumn origLoc - 1)
+          l !? i = if i < length l then Just $ l !! i else Nothing
+
 -- | Parses one line from a table. Be aware, it really parses one line, not
--- one row.
-oneTableLine :: IParse [String]
-oneTableLine =
-   many (notFollowedBy (extendedCommandName "/table") >> noneOf "|\n") `sepBy` (optional (char ' ') >> char '|' >> optional (char ' '))
+-- one row: In case of multiline rows, more data belonging to the same
+-- row might follow.
+oneTableLine :: IParse TableRow
+oneTableLine = rowLine `sepBy` columnDelimiter
+   where columnDelimiter = optional (char ' ') >> char '|' >> optional (char ' ')
+         rowLine = do
+             start <- getPosition
+             line  <- many $ notFollowedBy (extendedCommandName "/table") >> noneOf "|\n"
+             return [PosLine line (Just start)]
 
 -- | Utility for stopping parsing when a table ends
 endOr :: a -> IParse a -> IParse a
@@ -515,35 +551,34 @@ endOr val action = try $ (extendedCommandName "/table" >> return val)
 -- table has to be parsed in "multi-line mode" (i.e., whether horizontal row
 -- delimiters are necessary or not) and a current table structure. Returns a
 -- new table structure.
-table' :: Bool -> [[String]] -> IParse [[String]]
-table' ml table = do
+table' :: Bool -> [TableRow] -> IParse [TableRow]
+table' ml tbl = do
    skipEmptyLines
-   endOr table $ do
+   endOr tbl $ do
       lookAhead anyToken
-      l <- oneTableLine
-      let (newTable, newMl) = tableAppend ml l table
+      cells <- oneTableLine
+      let (newTable, newMl) = tableAppend ml cells tbl
       table' newMl newTable
 
 -- | Correctly appends a row to a table, depending on wheter the table is
 -- to be parsed in multi-line mode or not.
-tableAppend :: Bool -> [String] -> [[String]] -> ([[String]], Bool)
-tableAppend ml l table
+tableAppend :: Bool -> TableRow -> [TableRow] -> ([TableRow], Bool)
+tableAppend ml row table
    | not ml && isDelimiter l && null table = (table, True)
-   | not ml && isDelimiter l = (foldl' (zipWith (\a b -> a ++ b ++ "\n")) emptyRow table : [take (length $ head table) emptyRow], True)
+   | not ml && isDelimiter l = (foldl' (zipWith (++)) emptyRow table : [take (length $ head table) emptyRow], True)
    | ml && isDelimiter l = (table ++ [take (length $ head table) emptyRow], True)
-   | not ml = (table ++ [l], False)
-   | ml && not (null table) = (init table ++ [zipWith (\a b -> a ++ b ++ "\n") (last table) l], True)
+   | not ml = (table ++ [row], False)
+   | ml && not (null table) = (init table ++ [zipWith (++) (last table) row], True)
    | otherwise = (table, ml) -- Should not happen
    where isDelimiter [l] = all ((||) <$> (=='-') <*> (=='+')) (trimEnd l)
          isDelimiter _      = False
-         emptyRow = repeat ""
+         emptyRow = repeat [PosLine "" Nothing]
          trimEnd = dropWhileEnd isSpace
+         l = map (plString . head) row
 
 -- | Convenience wrapper around our table parsing function
-table :: IParse [[String]]
-table = do
-   t <- table' False []
-   return $ takeWhile (not . all (=="")) t
+table :: IParse [TableRow]
+table = map (map (filter (/= PosLine "" Nothing))) <$> table' False []
 
 -- | Simply parse a paragraph.
 paragraph :: HSP -> IParse DocumentItem
