@@ -372,9 +372,11 @@ extendedCommand' = inlineSource <|> inlineQuote <|> squareBrCommand
 
 -- | This parses a command and handles it accordingly.
 extendedCommand :: HSP -> IParse DocumentItem
-extendedCommand hsp = annotated $ do
-   (name, args) <- spaces >> extendedCommand'
-   handleExtendedCommand name args hsp
+extendedCommand hsp = do
+   spaces
+   annotated $ do
+       (name, args) <- extendedCommand'
+       handleExtendedCommand name args hsp
 
 -- | This works as some sort of lookahead: it expects a given command. However,
 -- it will not consume any input.
@@ -635,10 +637,10 @@ wordChar = do
 
 -- | Parses a whole word in the text of the document.
 word :: IParse DocumentItem
-word = annotated $ do
-    result <- many1 wordChar
+word = do
+    result <- annotated $ ItemWord <$> many1 wordChar
     spaces
-    return $ ItemWord result
+    return result
 
 -- | Contents of a source code section. Note that spaces, newlines and
 -- tabs will be left as they are. However, the bold tag is supported!
@@ -879,16 +881,18 @@ headingBegin = do
 
 -- | A heading
 heading :: HSP -> IParse DocumentItem
-heading hsp = annotated $ do
-    level <- headingBegin
-    content <- many1 (
-             (
-                (do x <- try $ line hsp; return x)
-                <|> (do x <- try $ extendedCommand hsp; return [x])
-             )
-          )
+heading hsp = do
+    result <- annotated $ do
+       level <- headingBegin
+       content <- many1 (
+                (
+                   (do x <- try $ line hsp; return x)
+                   <|> (do x <- try $ extendedCommand hsp; return [x])
+                )
+              )
+       return $ ItemDocumentContainer $ DocumentHeading (Heading level Nothing) (concat content)
     skipEmptyLines
-    return $ ItemDocumentContainer $ DocumentHeading (Heading level Nothing) (concat content)
+    return result
 
 -- | The start of a block quote
 blockQuoteBegin :: IParse ()
