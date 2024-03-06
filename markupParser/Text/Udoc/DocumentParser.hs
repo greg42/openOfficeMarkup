@@ -92,16 +92,21 @@ annotated parser = do
     endPos <- getPosition
     return $ DocumentItem item startPos endPos
 
--- | Parse a udoc document and return the document items.
-parseDocument :: ParserState -> HSP -> String -> Either ParseError ([DocumentItem], ParserState)
-parseDocument initialState hsp = myParse id parser
+-- | Parse a named udoc document and return the document items.
+parseNamedDocument :: ParserState -> HSP -> String -> String -> Either ParseError ([DocumentItem], ParserState)
+parseNamedDocument initialState hsp name = myParse id parser
    where myParse f p src = fst
-                           $ flip runState (f $ initialPos "")
-                           $ runParserT p initialState "" src
+                           $ flip runState (f $ initialPos name)
+                           $ runParserT p initialState name src
          parser = do
              items <- documentItems hsp
              s     <- P.getState
              return (items, s)
+
+
+-- | Parse a udoc document and return the document items.
+parseDocument :: ParserState -> HSP -> String -> Either ParseError ([DocumentItem], ParserState)
+parseDocument state hsp doc = parseNamedDocument state hsp "" doc
 
 -- | Parse an inline udoc document and return the document items (e.g. to
 -- | parse table cells). In case of an error use the given initial source
