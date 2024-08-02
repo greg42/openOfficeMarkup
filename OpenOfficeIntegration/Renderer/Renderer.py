@@ -62,6 +62,7 @@ class Renderer(object):
       self._lastItem = None
       self._currentLanguage = None
       self._inSource = False
+      self._lastRestored = None
       self.toc = None
 
    def init(self, document, cursor):
@@ -388,6 +389,7 @@ class Renderer(object):
       return [("ParaStyleName", old)]
 
    def restorePropertySet(self, properties):
+      self._lastRestored = (self._cursor.End, properties)
       for (name, value) in properties:
          if self._cursor.getPropertyValue(name) == value:
              continue
@@ -1016,7 +1018,18 @@ class Renderer(object):
        if not avoid_empty_paragraph \
           or not self._cursor.isStartOfParagraph():
 
+          beforeNewPara = self._cursor.End
           self._document.Text.insertControlCharacter(self._cursor, PARAGRAPH_BREAK, False)
+          # Evil hack: restore the last property set again in case we haven't moved
+          # the cursor since.
+          if self._lastRestored:
+              (where, what) = self._lastRestored
+              testCursor = self._cursor.getText().createTextCursorByRange(where)
+              testCursor.gotoRange(beforeNewPara, True)
+              if testCursor.isCollapsed():
+                 self.restorePropertySet(what)
+
+              self._lastRestored = None
 
    def template_width(self):
        """
