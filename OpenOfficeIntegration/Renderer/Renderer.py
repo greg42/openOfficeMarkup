@@ -1023,11 +1023,13 @@ class Renderer(object):
           # Evil hack: restore the last property set again in case we haven't moved
           # the cursor since.
           if self._lastRestored:
-              (where, what) = self._lastRestored
-              testCursor = self._cursor.getText().createTextCursorByRange(where)
-              testCursor.gotoRange(beforeNewPara, True)
-              if testCursor.isCollapsed():
-                 self.restorePropertySet(what)
+              try:
+                 (where, what) = self._lastRestored
+                 testCursor = self._cursor.getText().createTextCursorByRange(where)
+                 testCursor.gotoRange(beforeNewPara, True)
+                 if testCursor.isCollapsed():
+                     self.restorePropertySet(what)
+              except: pass
 
               self._lastRestored = None
 
